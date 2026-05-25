@@ -1,0 +1,9 @@
+node_modules/
+dist/
+spike/
+*.jsonl
+.DS_Store
+
+# Local AI-tooling state (not part of the project)
+.brain/
+.claude/
