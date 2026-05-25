@@ -2,7 +2,7 @@
 
 > Keep your Claude prompt cache warm so you never pay for a rebuild.
 
-[![test](https://github.com/carloluisito/stoke/actions/workflows/test.yml/badge.svg)](https://github.com/USERNAME/stoke/actions/workflows/test.yml)
+[![test](https://github.com/carloluisito/stoke/actions/workflows/test.yml/badge.svg)](https://github.com/carloluisito/stoke/actions/workflows/test.yml)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 
 **stoke** is a local proxy that sits between Claude Code (or any Anthropic
@@ -44,7 +44,7 @@ gap** — ~13× fewer pings than a tool that hardcodes the 5-min cadence.
 ## Install
 
 ```bash
-git clone https://github.com/USERNAME/stoke
+git clone https://github.com/carloluisito/stoke
 cd stoke
 npm install
 ```
