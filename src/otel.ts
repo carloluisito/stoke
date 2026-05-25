@@ -47,7 +47,7 @@ export async function init(cfg: NonNullable<Config["otel"]>): Promise<OtelHandle
     const endpoint = cfg.endpoint ?? process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
 
     const sdk = new sdkNode.NodeSDK({
-      resource: resources.resourceFromAttributes({ "service.name": serviceName }),
+      resource: new resources.Resource({ "service.name": serviceName }),
       traceExporter: new traceExp.OTLPTraceExporter(endpoint ? { url: `${endpoint}/v1/traces` } : {}),
       metricReader: new sdkMetrics.PeriodicExportingMetricReader({
         exporter: new metricExp.OTLPMetricExporter(endpoint ? { url: `${endpoint}/v1/metrics` } : {}),
