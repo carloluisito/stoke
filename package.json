@@ -37,7 +37,7 @@
     "start": "tsx src/cli.ts start",
     "status": "tsx src/cli.ts status",
     "tail": "tsx src/cli.ts tail",
-    "test": "node --import tsx --test tests/**/*.test.ts",
+    "test": "node scripts/run-tests.mjs",
     "build": "tsc -p .",
     "typecheck": "tsc -p . --noEmit"
   },
