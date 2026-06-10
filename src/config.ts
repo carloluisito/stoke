@@ -29,6 +29,8 @@ export function defaultConfig(): Config {
       maxPingsPerSession5h: 20,
     },
     modelPricing: {
+      "claude-fable-5": { inputPerMtok: 10.0 },
+      "claude-opus-4-8": { inputPerMtok: 5.0 },
       "claude-opus-4-7": { inputPerMtok: 5.0 },
       "claude-sonnet-4-6": { inputPerMtok: 3.0 },
       "claude-haiku-4-5": { inputPerMtok: 1.0 },

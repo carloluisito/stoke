@@ -33,6 +33,22 @@ test("computePingCostUsd: 61k Opus prefix ≈ $0.0031", () => {
   assert.equal(Math.round(cost * 1e6) / 1e6, 0.030673);
 });
 
+test("computePingCostUsd: default config prices claude-opus-4-8 (current model)", () => {
+  const cfg = defaultConfig();
+  const cost = computePingCostUsd(
+    "claude-opus-4-8",
+    {
+      input_tokens: 0,
+      output_tokens: 0,
+      cache_creation_input_tokens: 0,
+      cache_read_input_tokens: 100_000,
+    },
+    cfg,
+  );
+  // Opus 4.8: $5/MTok input × 0.1 cache-read multiplier → $0.50/MTok read.
+  assert.equal(cost, 0.05);
+});
+
 test("computePingCostUsd: unknown model returns 0", () => {
   const cfg = defaultConfig();
   const cost = computePingCostUsd("claude-unknown", {
