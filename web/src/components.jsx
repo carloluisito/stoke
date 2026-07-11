@@ -1,10 +1,18 @@
 import React, { useEffect, useState } from "react";
 import { api } from "./api.js";
 
-export function useApi(path) {
+export function useApi(path, { refreshMs = 15000 } = {}) {
   const [data, setData] = useState(null);
   const [err, setErr] = useState(null);
-  useEffect(() => { api(path).then(setData).catch(setErr); }, [path]);
+  useEffect(() => {
+    let alive = true;
+    const load = () => api(path).then(d => alive && setData(d)).catch(e => alive && setErr(e));
+    load();
+    const timer = refreshMs ? setInterval(load, refreshMs) : null;
+    const onFocus = () => load();
+    window.addEventListener("focus", onFocus);
+    return () => { alive = false; if (timer) clearInterval(timer); window.removeEventListener("focus", onFocus); };
+  }, [path, refreshMs]);
   return { data, err };
 }
 
