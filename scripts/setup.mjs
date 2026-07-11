@@ -41,7 +41,7 @@ const { buildServer, startServer } = await import("../src/server.js");
 
 const config = loadConfig();
 const db = openDb(config.dbPath);
-backfill(db, loadPricing(), config.transcriptGlobDir);
+for (const dir of config.transcriptGlobDirs) backfill(db, loadPricing(), dir);
 const turns = db.prepare("SELECT COUNT(*) c FROM turns").get().c;
 const app = buildServer({ db, rules: loadPricing(), config });
 const port = await startServer(app, config);
@@ -52,7 +52,7 @@ await app.close();
 
 console.log(`
 [setup] ✅ COMPLETE
-  - Config dir:        ${config.configDir}
+  - Config dir(s):     ${config.configDirs.join(", ")}
   - Turns ingested:    ${turns}
   - 30-day spend seen: $${overview.month.toFixed(2)}
   - Dashboard verified on port ${port}

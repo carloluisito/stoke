@@ -67,7 +67,9 @@ const isMain = process.argv[1] && path.resolve(process.argv[1]) === path.resolve
 if (isMain) {
   const config = loadConfig();
   const dryRun = process.argv.includes("--dry-run");
-  const changes = install({ configDir: config.configDir, projectRoot: config.projectRoot, dryRun });
-  console.log(`[tokeff install]${dryRun ? " (dry run — nothing written)" : ""}`);
-  for (const c of changes) console.log("  -", c);
+  for (const configDir of config.configDirs) {
+    const changes = install({ configDir, projectRoot: config.projectRoot, dryRun });
+    console.log(`[tokeff install] ${configDir}${dryRun ? " (dry run — nothing written)" : ""}`);
+    for (const c of changes) console.log("  -", c);
+  }
 }

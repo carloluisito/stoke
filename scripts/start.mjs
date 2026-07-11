@@ -8,11 +8,13 @@ const config = loadConfig();
 const db = openDb(config.dbPath);
 const rules = loadPricing();
 
-console.log(`[tokeff] backfilling from ${config.transcriptGlobDir} ...`);
-backfill(db, rules, config.transcriptGlobDir);
+for (const dir of config.transcriptGlobDirs) {
+  console.log(`[tokeff] backfilling from ${dir} ...`);
+  backfill(db, rules, dir);
+  watch(db, rules, dir);
+}
 const turns = db.prepare("SELECT COUNT(*) c FROM turns").get().c;
-console.log(`[tokeff] ${turns} turns ingested; watching for changes`);
-watch(db, rules, config.transcriptGlobDir);
+console.log(`[tokeff] ${turns} turns ingested; watching ${config.transcriptGlobDirs.length} profile(s) for changes`);
 
 const app = buildServer({ db, rules, config });
 const port = await startServer(app, config);
