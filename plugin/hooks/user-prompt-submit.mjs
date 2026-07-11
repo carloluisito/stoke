@@ -13,6 +13,27 @@ try {
   const act = (lever) => (cfg.levers[lever] || "suggest") === "enforce";
   const on = (lever) => (cfg.levers[lever] || "suggest") !== "observe";
 
+  // HARD GATE: above the block threshold, refuse the prompt entirely until the
+  // context shrinks. Blocks at most once per assistant turn — after one block,
+  // the next prompt passes (post-/compact the context is small again; if the
+  // user pushed through without compacting, the next turn re-arms the gate).
+  if (turns.length > 0 && act("bloat_hard_gate")) {
+    const last = turns[turns.length - 1];
+    const lastCtx = last.cache_read + last.input_tokens;
+    const blockAt = cfg.thresholds.blockContextTokens || 300000;
+    if (lastCtx > blockAt) {
+      const blockedSinceLastTurn = db?.prepare(
+        "SELECT COUNT(*) c FROM interventions WHERE session_id = ? AND lever = 'bloat_hard_gate' AND ts > ?"
+      ).get(input.session_id, last.ts)?.c > 0;
+      if (!blockedSinceLastTurn) {
+        const reason = `[tokeff] HARD GATE: this session re-bills ~${Math.round(lastCtx / 1000)}k context tokens per message (limit ${Math.round(blockAt / 1000)}k). Run /compact (or /clear and restate the task) before continuing. To push through anyway, just resend the prompt.`;
+        logIntervention(db, { session_id: input.session_id, lever: "bloat_hard_gate", mode: "enforce", message: `BLOCKED prompt at ~${Math.round(lastCtx / 1000)}k context tokens` });
+        emit({ decision: "block", reason });
+        process.exit(0);
+      }
+    }
+  }
+
   if (turns.length > 0) {
     const last = turns[turns.length - 1];
     const ttlMs = sessionTtlMs(turns);

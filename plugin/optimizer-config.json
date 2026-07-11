@@ -3,8 +3,9 @@
     "efficiency_conventions": "enforce",
     "cache_expiry_warning": "enforce",
     "context_bloat_warning": "enforce",
+    "bloat_hard_gate": "enforce",
     "wasteful_read_warning": "enforce",
     "session_cost_record": "enforce"
   },
-  "thresholds": { "bloatContextTokens": 120000, "largeFileRereadBytes": 100000, "verboseOutputTokens": 2500 }
+  "thresholds": { "bloatContextTokens": 120000, "blockContextTokens": 300000, "largeFileRereadBytes": 100000, "verboseOutputTokens": 2500 }
 }

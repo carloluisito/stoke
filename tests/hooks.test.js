@@ -47,6 +47,19 @@ describe("hooks", () => {
     expect(parsed.hookSpecificOutput.additionalContext).toMatch(/do not re-read files/);
   });
 
+  it("hard gate: blocks the prompt above blockContextTokens, then lets the retry pass", () => {
+    const past = new Date(Date.now() - 60_000).toISOString();
+    const dbPath = tmpDb([["g1","sG","p",past,"claude-opus-4-8",1000,100,0,0,400000,0.3]]); // 401k ctx > 300k gate
+    const first = runHook("user-prompt-submit.mjs", { session_id: "sG" }, { TOKEFF_DB: dbPath });
+    const blocked = JSON.parse(first.out);
+    expect(blocked.decision).toBe("block");
+    expect(blocked.reason).toMatch(/\/compact/);
+    const second = runHook("user-prompt-submit.mjs", { session_id: "sG" }, { TOKEFF_DB: dbPath });
+    const retry = JSON.parse(second.out);
+    expect(retry.decision).toBeUndefined(); // block-once: retry passes (directives still injected)
+    expect(retry.hookSpecificOutput.additionalContext).toMatch(/tokeff-directives/);
+  });
+
   it("user-prompt-submit on bloat: injects delegation + compact directive to Claude", () => {
     const now = Date.now();
     const dbPath = tmpDb([0, 1, 2].map(i =>
