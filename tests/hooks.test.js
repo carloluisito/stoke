@@ -36,12 +36,25 @@ describe("hooks", () => {
     expect(db.prepare("SELECT COUNT(*) c FROM interventions WHERE lever='efficiency_conventions'").get().c).toBe(1);
   });
 
-  it("user-prompt-submit warns after TTL gap with cache activity", () => {
+  it("user-prompt-submit on TTL gap: notifies the user AND injects a self-correction directive to Claude", () => {
     const past = new Date(Date.now() - 10 * 60 * 1000).toISOString(); // 10m ago > 5m TTL
     const dbPath = tmpDb([["m1","s1","p",past,"claude-opus-4-8",100,100,50000,0,100000,0.4]]);
     const { code, out } = runHook("user-prompt-submit.mjs", { session_id: "s1" }, { TOKEFF_DB: dbPath });
     expect(code).toBe(0);
-    expect(JSON.parse(out).systemMessage).toMatch(/cache likely expired/);
+    const parsed = JSON.parse(out);
+    expect(parsed.systemMessage).toMatch(/cache expired/i);
+    expect(parsed.hookSpecificOutput.additionalContext).toMatch(/tokeff-directives/);
+    expect(parsed.hookSpecificOutput.additionalContext).toMatch(/do not re-read files/);
+  });
+
+  it("user-prompt-submit on bloat: injects delegation + compact directive to Claude", () => {
+    const now = Date.now();
+    const dbPath = tmpDb([0, 1, 2].map(i =>
+      [`b${i}`,"sB","p",new Date(now - (3 - i) * 30_000).toISOString(),"claude-opus-4-8",1000,100,0,0,150000,0.1]));
+    const { out } = runHook("user-prompt-submit.mjs", { session_id: "sB" }, { TOKEFF_DB: dbPath });
+    const ctx = JSON.parse(out).hookSpecificOutput.additionalContext;
+    expect(ctx).toMatch(/cheap-explore/);
+    expect(ctx).toMatch(/recommend \/compact/);
   });
 
   it("user-prompt-submit stays silent on a warm small session", () => {
