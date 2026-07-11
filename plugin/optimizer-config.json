@@ -3,7 +3,7 @@
     "efficiency_conventions": "suggest",
     "cache_expiry_warning": "suggest",
     "context_bloat_warning": "suggest",
-    "wasteful_read_warning": "suggest",
+    "wasteful_read_warning": "enforce",
     "session_cost_record": "enforce"
   },
   "thresholds": { "bloatContextTokens": 120000, "largeFileRereadBytes": 100000 }

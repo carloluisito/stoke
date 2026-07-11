@@ -52,17 +52,49 @@ describe("hooks", () => {
     expect(out.trim()).toBe("");
   });
 
-  it("pre-tool-use warns on large re-read, silent on first read", () => {
+  function suggestConfig() {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "tokeff-cfg-"));
+    const p = path.join(dir, "optimizer-config.json");
+    fs.writeFileSync(p, JSON.stringify({
+      levers: { wasteful_read_warning: "suggest" },
+      thresholds: { bloatContextTokens: 120000, largeFileRereadBytes: 100000 },
+    }));
+    return p;
+  }
+
+  it("pre-tool-use (suggest) warns on large re-read, silent on first read", () => {
     const dbPath = tmpDb();
     const bigFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "tokeff-file-")), "big.txt");
     fs.writeFileSync(bigFile, "x".repeat(200000));
     const input = { session_id: `s-${Date.now()}`, tool_name: "Read", tool_input: { file_path: bigFile } };
-    const first = runHook("pre-tool-use.mjs", input, { TOKEFF_DB: dbPath });
+    const env = { TOKEFF_DB: dbPath, TOKEFF_OPTIMIZER_CONFIG: suggestConfig() };
+    const first = runHook("pre-tool-use.mjs", input, env);
     expect(first.code).toBe(0);
     expect(first.out.trim()).toBe("");
-    const second = runHook("pre-tool-use.mjs", input, { TOKEFF_DB: dbPath });
+    const second = runHook("pre-tool-use.mjs", input, env);
     expect(second.code).toBe(0);
     expect(JSON.parse(second.out).systemMessage).toMatch(/already read/);
+  });
+
+  it("pre-tool-use (enforce, the default) DENIES a full re-read but allows targeted reads", () => {
+    const dbPath = tmpDb();
+    const bigFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "tokeff-file-")), "big.txt");
+    fs.writeFileSync(bigFile, "x".repeat(200000));
+    const sessionId = `s-${Date.now()}-enforce`;
+    const full = { session_id: sessionId, tool_name: "Read", tool_input: { file_path: bigFile } };
+    const first = runHook("pre-tool-use.mjs", full, { TOKEFF_DB: dbPath });
+    expect(first.out.trim()).toBe(""); // first read always allowed
+    const second = runHook("pre-tool-use.mjs", full, { TOKEFF_DB: dbPath });
+    const decision = JSON.parse(second.out).hookSpecificOutput;
+    expect(decision.permissionDecision).toBe("deny");
+    expect(decision.permissionDecisionReason).toMatch(/targeted range|grep/);
+    // Targeted read of the same file is never blocked
+    const targeted = { ...full, tool_input: { file_path: bigFile, offset: 100, limit: 50 } };
+    const third = runHook("pre-tool-use.mjs", targeted, { TOKEFF_DB: dbPath });
+    expect(third.code).toBe(0);
+    expect(third.out.trim()).toBe("");
+    const db = openDb(dbPath);
+    expect(db.prepare("SELECT COUNT(*) c FROM interventions WHERE lever='wasteful_read_warning' AND message LIKE 'BLOCKED%'").get().c).toBe(1);
   });
 
   it("stop records session cost", () => {
