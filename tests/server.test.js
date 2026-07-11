@@ -18,7 +18,7 @@ beforeEach(() => {
 afterEach(async () => { await app.close(); });
 
 describe("api routes", () => {
-  const routes = ["/api/overview","/api/spend/daily","/api/spend/projects","/api/spend/models",
+  const routes = ["/api/overview","/api/spend/daily","/api/spend/daily-cost","/api/spend/projects","/api/spend/models",
     "/api/sessions","/api/sessions/s1","/api/cache","/api/waste","/api/ttl-advice","/api/interventions"];
   for (const r of routes) {
     it(`GET ${r} returns 200 JSON`, async () => {

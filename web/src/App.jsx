@@ -17,13 +17,16 @@ export default function App() {
   const [tab, setTab] = useState("Overview");
   return (
     <div style={{ maxWidth: 1100, margin: "0 auto", padding: 24 }}>
-      <h1 style={{ fontSize: 22 }}>💰 tokeff <span style={{ opacity: 0.5, fontSize: 14 }}>token efficiency</span></h1>
-      <nav style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+      <h1 style={{ fontSize: 20, margin: "0 0 4px" }}>💰 tokeff</h1>
+      <p style={{ color: "var(--muted)", fontSize: 12, margin: "0 0 16px" }}>token spend · live, refreshes every 15s</p>
+      <nav style={{ display: "flex", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
         {Object.keys(TABS).map((t) => (
           <button key={t} onClick={() => setTab(t)}
             style={{
-              padding: "6px 14px", borderRadius: 8, border: "1px solid #333", cursor: "pointer",
-              background: tab === t ? "#2f6feb" : "#1a1d24", color: "#e6e6e6",
+              padding: "6px 14px", borderRadius: 8, cursor: "pointer", fontSize: 13,
+              border: tab === t ? "1px solid var(--s1)" : "1px solid var(--border)",
+              background: tab === t ? "rgba(57,135,229,0.15)" : "var(--surface)",
+              color: tab === t ? "var(--ink)" : "var(--ink-2)",
             }}>
             {t}
           </button>

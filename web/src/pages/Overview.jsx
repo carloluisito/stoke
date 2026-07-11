@@ -1,33 +1,52 @@
 import React from "react";
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
-import { useApi, Card } from "../components.jsx";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid } from "recharts";
+import { useApi, Card, Section, AXIS, GRID, ChartTooltip } from "../components.jsx";
 import { usd } from "../api.js";
+
+// Fixed categorical assignment — output first (it's the 5x-priced component).
+const SERIES = [
+  { key: "output", name: "Output", color: "var(--s1)" },
+  { key: "input", name: "Fresh input", color: "var(--s2)" },
+  { key: "cacheWrite", name: "Cache write", color: "var(--s3)" },
+  { key: "cacheRead", name: "Cache read", color: "var(--s4)" },
+];
 
 export default function Overview() {
   const { data: o } = useApi("/overview");
-  const { data: daily } = useApi("/spend/daily?days=30");
-  if (!o || !daily) return <p>Loading…</p>;
+  const { data: daily } = useApi("/spend/daily-cost?days=30");
+  if (!o || !daily) return <p style={{ color: "var(--muted)" }}>Loading…</p>;
   return (
     <div>
-      <div style={{ display: "flex", gap: 12, marginBottom: 24 }}>
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
         <Card label="Today" value={usd(o.today)} />
         <Card label="Last 7 days" value={usd(o.week)} />
         <Card label="Last 30 days" value={usd(o.month)} />
-        <Card label="Effective $/MTok" value={usd(o.effectiveDollarsPerMTok)} sub="blended, all token types" />
+        <Card label="Saved by caching" value={usd(o.cacheSavedUsd)} sub="vs paying full input price" accent="var(--good)" />
       </div>
-      <h3>Daily spend (tokens by type)</h3>
-      <ResponsiveContainer width="100%" height={280}>
-        <AreaChart data={daily}>
-          <XAxis dataKey="day" fontSize={11} />
-          <YAxis fontSize={11} />
-          <Tooltip contentStyle={{ background: "#1a1d24", border: "1px solid #333" }} />
-          <Legend />
-          <Area stackId="1" dataKey="input_tokens" name="fresh input" fill="#e4573d" stroke="#e4573d" />
-          <Area stackId="1" dataKey="output_tokens" name="output" fill="#f2a33c" stroke="#f2a33c" />
-          <Area stackId="1" dataKey="cache_write" name="cache write" fill="#8e6fd8" stroke="#8e6fd8" />
-          <Area stackId="1" dataKey="cache_read" name="cache read (cheap)" fill="#3fa46a" stroke="#3fa46a" />
-        </AreaChart>
-      </ResponsiveContainer>
+      <Section title="Daily spend — where the dollars go">
+        <ResponsiveContainer width="100%" height={300}>
+          <BarChart data={daily.map(d => ({ ...d, dayLabel: d.day.slice(5) }))} maxBarSize={26}>
+            <CartesianGrid {...GRID} />
+            <XAxis dataKey="dayLabel" {...AXIS} />
+            <YAxis {...AXIS} tickFormatter={v => `$${v}`} width={44} />
+            <Tooltip cursor={{ fill: "rgba(255,255,255,0.04)" }} content={
+              <ChartTooltip rows={(payload) => [
+                ...payload.map(p => ({ name: p.name, value: usd(p.value), color: p.color })).reverse(),
+                { name: "Total", value: usd(payload.reduce((a, p) => a + p.value, 0)) },
+              ]} />
+            } />
+            <Legend wrapperStyle={{ fontSize: 12, color: "var(--ink-2)" }} />
+            {SERIES.map((s, i) => (
+              <Bar key={s.key} dataKey={s.key} name={s.name} stackId="usd" fill={s.color}
+                stroke="var(--surface)" strokeWidth={1}
+                radius={i === SERIES.length - 1 ? [4, 4, 0, 0] : 0} />
+            ))}
+          </BarChart>
+        </ResponsiveContainer>
+        <p style={{ color: "var(--muted)", fontSize: 12, margin: "8px 0 0" }}>
+          All segments are dollars, so sizes are directly comparable. Output tokens cost 5× input; cache reads are the cheap green slice doing most of the volume.
+        </p>
+      </Section>
     </div>
   );
 }

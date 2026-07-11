@@ -1,3 +1,41 @@
+import { ruleFor } from "../pricing.js";
+
+const M = 1_000_000;
+
+// Daily spend broken down by cost component IN DOLLARS (not tokens) — dollar
+// magnitudes are comparable across components; raw token counts are not.
+export function costByDay(db, rules, { days = 30 } = {}) {
+  const cutoff = new Date(Date.now() - days * 86400e3).toISOString();
+  const rows = db.prepare(`SELECT substr(ts,1,10) day, model,
+      SUM(input_tokens) i, SUM(output_tokens) o,
+      SUM(cache_write_5m) w5, SUM(cache_write_1h) w1, SUM(cache_read) r
+    FROM turns WHERE ts >= ? GROUP BY day, model ORDER BY day`).all(cutoff);
+  const byDay = new Map();
+  for (const x of rows) {
+    const rule = ruleFor(x.model, x.day, rules);
+    if (!rule) continue;
+    const e = byDay.get(x.day) || { day: x.day, output: 0, input: 0, cacheWrite: 0, cacheRead: 0, total: 0 };
+    e.output += x.o / M * rule.output;
+    e.input += x.i / M * rule.input;
+    e.cacheWrite += x.w5 / M * rule.cache_write_5m + x.w1 / M * rule.cache_write_1h;
+    e.cacheRead += x.r / M * rule.cache_read;
+    e.total = e.output + e.input + e.cacheWrite + e.cacheRead;
+    byDay.set(x.day, e);
+  }
+  return [...byDay.values()];
+}
+
+// What cache reads would have cost at full input price, minus what they cost.
+export function cacheSavedUsd(db, rules, now = new Date()) {
+  const today = now.toISOString();
+  let saved = 0;
+  for (const m of spendByModel(db)) {
+    const rule = ruleFor(m.model, today, rules);
+    if (rule) saved += (m.cache_read || 0) / M * (rule.input - rule.cache_read);
+  }
+  return saved;
+}
+
 export function spendByDay(db, { days = 30 } = {}) {
   return db.prepare(`SELECT substr(ts,1,10) day, SUM(cost_usd) cost,
     SUM(input_tokens) input_tokens, SUM(output_tokens) output_tokens,
@@ -11,7 +49,7 @@ export function spendByProject(db) {
 }
 
 export function spendByModel(db) {
-  return db.prepare(`SELECT model, SUM(cost_usd) cost, SUM(input_tokens) input_tokens, SUM(output_tokens) output_tokens FROM turns GROUP BY model ORDER BY cost DESC`).all();
+  return db.prepare(`SELECT model, SUM(cost_usd) cost, SUM(input_tokens) input_tokens, SUM(output_tokens) output_tokens, SUM(cache_read) cache_read FROM turns GROUP BY model ORDER BY cost DESC`).all();
 }
 
 export function sessions(db, { limit = 50 } = {}) {

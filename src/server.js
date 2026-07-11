@@ -2,14 +2,15 @@ import Fastify from "fastify";
 import fastifyStatic from "@fastify/static";
 import fs from "node:fs";
 import path from "node:path";
-import { spendByDay, spendByProject, spendByModel, sessions, sessionDetail, cacheStats, overview } from "./analytics/breakdowns.js";
+import { spendByDay, costByDay, cacheSavedUsd, spendByProject, spendByModel, sessions, sessionDetail, cacheStats, overview } from "./analytics/breakdowns.js";
 import { runDetectors, ttlAdvisor, savingsAttribution } from "./analytics/detectors.js";
 
 export function buildServer({ db, rules, config }) {
   const app = Fastify({ logger: false });
 
-  app.get("/api/overview", () => overview(db));
+  app.get("/api/overview", () => ({ ...overview(db), cacheSavedUsd: cacheSavedUsd(db, rules) }));
   app.get("/api/spend/daily", (req) => spendByDay(db, { days: Number(req.query.days) || 30 }));
+  app.get("/api/spend/daily-cost", (req) => costByDay(db, rules, { days: Number(req.query.days) || 30 }));
   app.get("/api/spend/projects", () => spendByProject(db));
   app.get("/api/spend/models", () => spendByModel(db));
   app.get("/api/sessions", (req) => sessions(db, { limit: Number(req.query.limit) || 50 }));

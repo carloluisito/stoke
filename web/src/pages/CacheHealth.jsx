@@ -1,33 +1,36 @@
-import React from "react";
-import { useApi, Card, Table } from "../components.jsx";
-import { usd, tok } from "../api.js";
+import React, { useMemo } from "react";
+import { useApi, Card, Section, Table, Badge } from "../components.jsx";
+import { usd, tok, when, projectLabeler } from "../api.js";
 
 export default function CacheHealth() {
   const { data: c } = useApi("/cache");
+  const { data: o } = useApi("/overview");
   const { data: waste } = useApi("/waste");
-  if (!c || !waste) return <p>Loading…</p>;
-  const events = waste.findings.filter(f => f.type === "cache_expiry" || f.type === "cache_invalidation");
+  const events = useMemo(() => (waste?.findings || []).filter(f => f.type === "cache_expiry" || f.type === "cache_invalidation"), [waste]);
+  const label = useMemo(() => projectLabeler(events.map(e => e.project)), [events]);
+  if (!c || !waste || !o) return <p style={{ color: "var(--muted)" }}>Loading…</p>;
   return (
     <div>
-      <div style={{ display: "flex", gap: 12, marginBottom: 24 }}>
-        <Card label="Cache hit rate" value={`${(c.hitRate * 100).toFixed(1)}%`} sub="reads / (reads + fresh input)" />
-        <Card label="Cache reads" value={tok(c.totalRead)} />
-        <Card label="Writes (5m TTL)" value={tok(c.totalWrite5m)} />
-        <Card label="Writes (1h TTL)" value={tok(c.totalWrite1h)} />
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+        <Card label="Cache hit rate" value={`${(c.hitRate * 100).toFixed(1)}%`} sub="reads ÷ (reads + fresh input)" />
+        <Card label="Saved by caching" value={usd(o.cacheSavedUsd)} sub="vs full input price" accent="var(--good)" />
+        <Card label="Tokens read from cache" value={tok(c.totalRead)} sub="billed at 10% of input price" />
+        <Card label="Cache writes" value={`${tok(c.totalWrite5m)} · ${tok(c.totalWrite1h)}`} sub="5-minute TTL · 1-hour TTL" />
       </div>
-      <h3>Cache loss events</h3>
-      {events.length === 0 ? <p style={{ opacity: 0.6 }}>None detected 🎉</p> : (
-        <Table
-          cols={[
-            { key: "type", label: "Type" },
-            { key: "session_id", label: "Session", render: r => r.session_id?.slice(0, 8) },
-            { key: "ts", label: "When", render: r => r.ts?.slice(0, 16).replace("T", " ") },
-            { key: "wastedUsd", label: "Wasted", render: r => usd(r.wastedUsd) },
-            { key: "recommendation", label: "Recommendation" },
-          ]}
-          rows={events}
-        />
-      )}
+      <Section title={`Cache loss events (${events.length}) — each one re-billed context at full price`}>
+        {events.length === 0 ? <p style={{ color: "var(--muted)" }}>None detected 🎉</p> : (
+          <Table
+            cols={[
+              { key: "type", label: "Event", render: r => <Badge type={r.type} /> },
+              { key: "ts", label: "When", render: r => when(r.ts) },
+              { key: "project", label: "Project", render: r => <span title={r.project}>{label(r.project)}</span> },
+              { key: "wastedUsd", label: "Cost", num: true, render: r => usd(r.wastedUsd) },
+              { key: "recommendation", label: "What to do", wrap: true, render: r => <span style={{ color: "var(--ink-2)" }}>{r.recommendation}</span> },
+            ]}
+            rows={events.sort((a, b) => b.wastedUsd - a.wastedUsd)}
+          />
+        )}
+      </Section>
     </div>
   );
 }

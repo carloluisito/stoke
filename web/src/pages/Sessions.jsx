@@ -1,46 +1,55 @@
-import React, { useState } from "react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-import { useApi, Table } from "../components.jsx";
-import { usd, tok } from "../api.js";
+import React, { useState, useMemo } from "react";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+import { useApi, Table, Section, AXIS, GRID, ChartTooltip } from "../components.jsx";
+import { usd, tok, when, projectLabeler } from "../api.js";
 
 export default function Sessions() {
   const { data: list } = useApi("/sessions?limit=100");
   const [sel, setSel] = useState(null);
   const { data: detail } = useApi(sel ? `/sessions/${sel}` : "/sessions?limit=0");
-  if (!list) return <p>Loading…</p>;
+  const label = useMemo(() => projectLabeler((list || []).map(r => r.project)), [list]);
+  if (!list) return <p style={{ color: "var(--muted)" }}>Loading…</p>;
   return (
     <div>
-      <Table
-        cols={[
-          { key: "session_id", label: "Session", render: r => r.session_id.slice(0, 8) },
-          { key: "project", label: "Project" },
-          { key: "model", label: "Model" },
-          { key: "started", label: "Started", render: r => r.started?.slice(0, 16).replace("T", " ") },
-          { key: "turns", label: "Turns" },
-          { key: "cost", label: "Cost", render: r => usd(r.cost) },
-        ]}
-        rows={list}
-        onRowClick={r => setSel(r.session_id)}
-      />
       {sel && Array.isArray(detail) && detail.length > 0 && (
-        <div style={{ marginTop: 24 }}>
-          <h3>Per-turn cost — {sel.slice(0, 8)}</h3>
+        <Section title={`Per-turn cost — ${label(detail[0].project)} · ${sel.slice(0, 8)} (click a bar for detail)`}>
           <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={detail.map((t, i) => ({ ...t, n: i + 1 }))}>
-              <XAxis dataKey="n" fontSize={11} />
-              <YAxis fontSize={11} />
-              <Tooltip
-                contentStyle={{ background: "#1a1d24", border: "1px solid #333" }}
-                formatter={(v, n, { payload }) => [
-                  `${usd(payload.cost_usd)} · in ${tok(payload.input_tokens)} out ${tok(payload.output_tokens)} · cache r ${tok(payload.cache_read)} w ${tok(payload.cache_write_5m + payload.cache_write_1h)}`,
-                  "turn",
-                ]}
-              />
-              <Bar dataKey="cost_usd" fill="#2f6feb" />
+            <BarChart data={detail.map((t, i) => ({ ...t, n: i + 1 }))} maxBarSize={22}>
+              <CartesianGrid {...GRID} />
+              <XAxis dataKey="n" {...AXIS} label={{ value: "turn", fill: "var(--muted)", fontSize: 11, position: "insideBottomRight", dy: 8 }} />
+              <YAxis {...AXIS} tickFormatter={v => `$${v}`} width={44} />
+              <Tooltip cursor={{ fill: "rgba(255,255,255,0.04)" }} content={
+                <ChartTooltip rows={(payload) => {
+                  const t = payload[0].payload;
+                  return [
+                    { name: "Cost", value: usd(t.cost_usd), color: "var(--s1)" },
+                    { name: "Output tokens", value: tok(t.output_tokens) },
+                    { name: "Fresh input", value: tok(t.input_tokens) },
+                    { name: "Cache read", value: tok(t.cache_read) },
+                    { name: "Cache write", value: tok(t.cache_write_5m + t.cache_write_1h) },
+                  ];
+                }} />
+              } />
+              <Bar dataKey="cost_usd" fill="var(--s1)" radius={[4, 4, 0, 0]} stroke="var(--surface)" strokeWidth={1} />
             </BarChart>
           </ResponsiveContainer>
-        </div>
+        </Section>
       )}
+      <Section title="Recent sessions — click a row to see its cost per turn">
+        <Table
+          rowKey={r => r.session_id}
+          selectedKey={sel}
+          cols={[
+            { key: "started", label: "Started", render: r => when(r.started) },
+            { key: "project", label: "Project", render: r => <span title={r.project}>{label(r.project)}</span> },
+            { key: "model", label: "Model", render: r => r.model?.replace("claude-", "") },
+            { key: "turns", label: "Turns", num: true },
+            { key: "cost", label: "Cost", num: true, render: r => usd(r.cost) },
+          ]}
+          rows={list}
+          onRowClick={r => setSel(r.session_id)}
+        />
+      </Section>
     </div>
   );
 }
