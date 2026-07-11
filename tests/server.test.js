@@ -37,13 +37,19 @@ describe("api routes", () => {
 
 describe("startServer port fallback", () => {
   it("falls back to the next port when the default is taken, never 9876", async () => {
-    const blocker = net.createServer().listen(5599, "127.0.0.1");
-    await new Promise(r => blocker.once("listening", r));
+    // Occupy 5599 ourselves — or accept that another process (e.g. a running
+    // tokeff dashboard) already holds it; either way the precondition is met.
+    const blocker = net.createServer();
+    const weBlocked = await new Promise(resolve => {
+      blocker.once("listening", () => resolve(true));
+      blocker.once("error", () => resolve(false)); // already in use by someone else
+      blocker.listen(5599, "127.0.0.1");
+    });
     const app2 = buildServer({ db, rules: loadPricing(), config: loadConfig({}) });
     const port = await startServer(app2, loadConfig({}));
     expect(port).toBeGreaterThanOrEqual(5600);
     expect(port).not.toBe(9876);
     await app2.close();
-    blocker.close();
+    if (weBlocked) blocker.close();
   });
 });

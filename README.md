@@ -21,14 +21,22 @@ tokeff makes all three visible and actionable.
 | **Dashboard** | Local web app on **http://localhost:5599** — Overview, Sessions (per-turn cost waterfall), Cache health, Waste report, Optimizer log. |
 | **Optimizer** | Claude Code hooks (fail-open, can never break a session), Haiku subagents (`cheap-explore`, `cheap-search`), skills (`/spend`, `/efficiency-audit`), and a live cost statusline. |
 
-## Quick start
+## Quick start (any machine)
+
+```bash
+node scripts/setup.mjs   # deps + web build + tests + install + verify, idempotent
+npm start                # backfill + watch + dashboard on :5599
+```
+
+Opening this repo in Claude Code also exposes a **`/setup-tokeff`** project skill that walks through the same setup with prerequisites and troubleshooting — clone the repo on a new machine, open Claude Code, invoke the skill.
+
+Manual equivalent:
 
 ```bash
 npm install
 cd web && npm install && npm run build && cd ..
 node scripts/install.mjs --dry-run   # review what will be registered
 node scripts/install.mjs             # register hooks/agents/skills/statusline
-npm start                            # backfill + watch + dashboard on :5599
 ```
 
 The installer merges additively into `<config-dir>/settings.json` — existing hooks and an existing statusline are never clobbered. Config dir resolution: `CLAUDE_CONFIG_DIR` env var, else `~/.claude`.
