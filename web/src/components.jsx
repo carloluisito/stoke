@@ -26,12 +26,23 @@ export function Card({ label, value, sub, accent }) {
   );
 }
 
-export function Section({ title, children }) {
+export function Section({ title, hint, children }) {
   return (
     <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 18, marginTop: 16 }}>
-      <h3 style={{ margin: "0 0 12px", fontSize: 14, color: "var(--ink-2)", fontWeight: 600 }}>{title}</h3>
-      {children}
+      <h3 style={{ margin: 0, fontSize: 14, color: "var(--ink)", fontWeight: 600 }}>{title}</h3>
+      {hint && <p style={{ margin: "4px 0 0", fontSize: 12, color: "var(--muted)" }}>{hint}</p>}
+      <div style={{ marginTop: 12 }}>{children}</div>
     </div>
+  );
+}
+
+// One-sentence page header: the question this tab answers.
+export function Intro({ children }) {
+  return (
+    <p style={{ margin: "0 0 14px", fontSize: 13, color: "var(--ink-2)", background: "var(--surface)",
+      border: "1px solid var(--border)", borderRadius: 10, padding: "10px 14px" }}>
+      {children}
+    </p>
   );
 }
 

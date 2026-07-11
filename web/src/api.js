@@ -21,6 +21,14 @@ export const tok = (n) => {
 
 export const when = (ts) => (ts ? ts.slice(5, 16).replace("T", " ") : "");
 
+export const ago = (ts) => {
+  const s = Math.max(0, (Date.now() - new Date(ts).getTime()) / 1000);
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  return `${Math.floor(s / 86400)}d ago`;
+};
+
 // Projects are path-encoded dirs ("C--Users-me-Desktop-work-my-app"). Strip the
 // longest common prefix across all projects so only the distinguishing tail shows.
 export function projectLabeler(projects) {

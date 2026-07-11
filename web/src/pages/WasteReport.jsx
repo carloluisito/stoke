@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { useApi, Table, Section, Badge, Card } from "../components.jsx";
+import { useApi, Table, Section, Intro, Badge, Card } from "../components.jsx";
 import { usd, when, projectLabeler } from "../api.js";
 
 export default function WasteReport() {
@@ -11,6 +11,7 @@ export default function WasteReport() {
   const switchable = ttl.filter(t => t.verdict === "switch-1h");
   return (
     <div>
+      <Intro>💡 <b>Where is money being wasted, and what should I change?</b> Detectors scan every session for known waste patterns and price each one in dollars. Fix the top rows first — they're sorted by cost.</Intro>
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
         <Card label="Identified waste" value={usd(total)} sub={`${waste.findings.length} findings`} accent="var(--serious)" />
         <Card label="Projects that should switch to 1h cache TTL" value={`${switchable.length}`} sub={switchable.map(s => label(s.project)).join(", ") || "none"} />
@@ -29,7 +30,8 @@ export default function WasteReport() {
           />
         )}
       </Section>
-      <Section title="TTL advisor — would 1-hour caching pay off per project?">
+      <Section title="TTL advisor — would 1-hour caching pay off per project?"
+        hint="The cache normally lives 5 minutes; a 1-hour version exists but costs more to write (2× vs 1.25× input price). Based on how long your real pauses are, this says per project whether paying that premium would net save money.">
         <Table
           cols={[
             { key: "project", label: "Project", render: r => <span title={r.project}>{label(r.project)}</span> },
@@ -43,7 +45,8 @@ export default function WasteReport() {
         />
       </Section>
       {waste.attribution.length > 0 && (
-        <Section title="Optimizer savings attribution — waste rate before vs after each lever went live">
+        <Section title="Is the optimizer actually helping?"
+          hint="Compares how often waste happened per session before vs after each optimizer feature (lever) was enabled. If 'after' is lower, the tool is paying for itself — this is its report card.">
           <Table
             cols={[
               { key: "lever", label: "Lever" },

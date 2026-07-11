@@ -53,8 +53,11 @@ export function spendByModel(db) {
 }
 
 export function sessions(db, { limit = 50 } = {}) {
-  return db.prepare(`SELECT session_id, project, MIN(ts) started, MAX(model) model, COUNT(*) turns, SUM(cost_usd) cost
-    FROM turns GROUP BY session_id ORDER BY started DESC LIMIT ?`).all(limit);
+  // ended + ttlMs let the UI derive live status: active / cache warm / cache cold.
+  return db.prepare(`SELECT session_id, project, MIN(ts) started, MAX(ts) ended,
+    MAX(model) model, COUNT(*) turns, SUM(cost_usd) cost,
+    CASE WHEN SUM(cache_write_1h) > 0 THEN 3600000 ELSE 300000 END ttlMs
+    FROM turns GROUP BY session_id ORDER BY ended DESC LIMIT ?`).all(limit);
 }
 
 export function sessionDetail(db, sessionId) {

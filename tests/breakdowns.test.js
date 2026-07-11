@@ -31,6 +31,13 @@ describe("breakdowns", () => {
     expect(s.length).toBe(2);
     expect(sessionDetail(db, "s1").length).toBe(2);
   });
+  it("sessions carry ended + ttlMs for live status", () => {
+    const s2 = sessions(db, {}).find(x => x.session_id === "s2"); // wrote 1h cache tokens
+    expect(s2.ended).toBe("2026-07-11T09:10:00Z");
+    expect(s2.ttlMs).toBe(3600000);
+    const s1 = sessions(db, {}).find(x => x.session_id === "s1"); // 5m-only session
+    expect(s1.ttlMs).toBe(300000);
+  });
   it("cacheStats hitRate = read/(read+fresh)", () => {
     const c = cacheStats(db);
     expect(c.totalRead).toBe(5000);

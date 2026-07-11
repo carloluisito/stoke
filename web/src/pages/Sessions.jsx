@@ -1,7 +1,15 @@
 import React, { useState, useMemo } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
-import { useApi, Table, Section, AXIS, GRID, ChartTooltip } from "../components.jsx";
-import { usd, tok, when, projectLabeler } from "../api.js";
+import { useApi, Table, Section, Intro, AXIS, GRID, ChartTooltip } from "../components.jsx";
+import { usd, tok, ago, projectLabeler } from "../api.js";
+
+// Live session state, judged against the session's own cache TTL.
+function sessionStatus(r) {
+  const gap = Date.now() - new Date(r.ended).getTime();
+  if (gap < 2 * 60e3) return { icon: "●", label: "active", color: "var(--good)", title: "A turn completed in the last 2 minutes" };
+  if (gap < r.ttlMs) return { icon: "◐", label: "cache warm", color: "var(--ink)", title: `Within the ${r.ttlMs / 60000}m cache TTL — resuming now reuses the cache cheaply` };
+  return { icon: "○", label: "cache cold", color: "var(--muted)", title: "Past the cache TTL — resuming re-bills the full context at input price" };
+}
 
 export default function Sessions() {
   const { data: list } = useApi("/sessions?limit=100");
@@ -11,8 +19,10 @@ export default function Sessions() {
   if (!list) return <p style={{ color: "var(--muted)" }}>Loading…</p>;
   return (
     <div>
+      <Intro>💡 <b>What did each conversation cost — and is it cheap to resume?</b> A session is one Claude Code conversation. While its cache is <b>warm</b>, continuing it reuses your context at 10% price; once <b>cold</b>, the next message re-bills everything at full price.</Intro>
       {sel && Array.isArray(detail) && detail.length > 0 && (
-        <Section title={`Per-turn cost — ${label(detail[0].project)} · ${sel.slice(0, 8)} (click a bar for detail)`}>
+        <Section title={`Per-turn cost — ${label(detail[0].project)}`}
+          hint="Each bar is one exchange (your message + Claude's reply). Tall bars are the expensive moments — hover to see why: big output, or a cache rebuild.">
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={detail.map((t, i) => ({ ...t, n: i + 1 }))} maxBarSize={22}>
               <CartesianGrid {...GRID} />
@@ -40,7 +50,11 @@ export default function Sessions() {
           rowKey={r => r.session_id}
           selectedKey={sel}
           cols={[
-            { key: "started", label: "Started", render: r => when(r.started) },
+            { key: "status", label: "Status", render: r => {
+                const s = sessionStatus(r);
+                return <span title={s.title} style={{ color: s.color, fontWeight: 600 }}>{s.icon} {s.label}</span>;
+              } },
+            { key: "ended", label: "Last activity", render: r => ago(r.ended) },
             { key: "project", label: "Project", render: r => <span title={r.project}>{label(r.project)}</span> },
             { key: "model", label: "Model", render: r => r.model?.replace("claude-", "") },
             { key: "turns", label: "Turns", num: true },
@@ -49,6 +63,9 @@ export default function Sessions() {
           rows={list}
           onRowClick={r => setSel(r.session_id)}
         />
+        <p style={{ color: "var(--muted)", fontSize: 12, margin: "8px 0 0" }}>
+          ● active = turn in the last 2 min · ◐ cache warm = resuming is cheap · ○ cache cold = resuming re-bills full context
+        </p>
       </Section>
     </div>
   );

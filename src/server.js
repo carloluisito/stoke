@@ -22,7 +22,8 @@ export function buildServer({ db, rules, config }) {
   }));
   app.get("/api/ttl-advice", () => ttlAdvisor(db, rules));
   app.get("/api/interventions", () =>
-    db.prepare("SELECT * FROM interventions ORDER BY ts DESC LIMIT 500").all());
+    db.prepare(`SELECT i.*, (SELECT t.project FROM turns t WHERE t.session_id = i.session_id LIMIT 1) AS project
+      FROM interventions i ORDER BY i.ts DESC LIMIT 500`).all());
 
   const dist = path.join(config.projectRoot, "web", "dist");
   if (fs.existsSync(dist)) {
