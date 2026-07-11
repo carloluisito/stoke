@@ -1,0 +1,81 @@
+import { describe, it, expect } from "vitest";
+import { spawnSync } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
+import os from "node:os";
+import { openDb } from "../src/db.js";
+
+function runHook(name, input, env = {}) {
+  const r = spawnSync("node", [path.join("plugin", "hooks", name)], {
+    input: JSON.stringify(input),
+    encoding: "utf8",
+    env: { ...process.env, ...env },
+    timeout: 15000,
+  });
+  return { code: r.status, out: r.stdout, err: r.stderr };
+}
+
+function tmpDb(seedTurns = []) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "tokeff-hooks-"));
+  const dbPath = path.join(dir, "t.db");
+  const db = openDb(dbPath);
+  const ins = db.prepare("INSERT INTO turns VALUES (?,?,?,?,?,?,?,?,?,?,?)");
+  seedTurns.forEach(r => ins.run(...r));
+  db.close();
+  return dbPath;
+}
+
+describe("hooks", () => {
+  it("session-start injects conventions and logs intervention, exit 0", () => {
+    const dbPath = tmpDb();
+    const { code, out } = runHook("session-start.mjs", { session_id: "s1" }, { TOKEFF_DB: dbPath });
+    expect(code).toBe(0);
+    const parsed = JSON.parse(out);
+    expect(parsed.hookSpecificOutput.additionalContext).toMatch(/token-efficiency/);
+    const db = openDb(dbPath);
+    expect(db.prepare("SELECT COUNT(*) c FROM interventions WHERE lever='efficiency_conventions'").get().c).toBe(1);
+  });
+
+  it("user-prompt-submit warns after TTL gap with cache activity", () => {
+    const past = new Date(Date.now() - 10 * 60 * 1000).toISOString(); // 10m ago > 5m TTL
+    const dbPath = tmpDb([["m1","s1","p",past,"claude-opus-4-8",100,100,50000,0,100000,0.4]]);
+    const { code, out } = runHook("user-prompt-submit.mjs", { session_id: "s1" }, { TOKEFF_DB: dbPath });
+    expect(code).toBe(0);
+    expect(JSON.parse(out).systemMessage).toMatch(/cache likely expired/);
+  });
+
+  it("user-prompt-submit stays silent on a warm small session", () => {
+    const recent = new Date(Date.now() - 30 * 1000).toISOString();
+    const dbPath = tmpDb([["m1","s1","p",recent,"claude-opus-4-8",100,100,0,0,5000,0.01]]);
+    const { code, out } = runHook("user-prompt-submit.mjs", { session_id: "s1" }, { TOKEFF_DB: dbPath });
+    expect(code).toBe(0);
+    expect(out.trim()).toBe("");
+  });
+
+  it("pre-tool-use warns on large re-read, silent on first read", () => {
+    const dbPath = tmpDb();
+    const bigFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "tokeff-file-")), "big.txt");
+    fs.writeFileSync(bigFile, "x".repeat(200000));
+    const input = { session_id: `s-${Date.now()}`, tool_name: "Read", tool_input: { file_path: bigFile } };
+    const first = runHook("pre-tool-use.mjs", input, { TOKEFF_DB: dbPath });
+    expect(first.code).toBe(0);
+    expect(first.out.trim()).toBe("");
+    const second = runHook("pre-tool-use.mjs", input, { TOKEFF_DB: dbPath });
+    expect(second.code).toBe(0);
+    expect(JSON.parse(second.out).systemMessage).toMatch(/already read/);
+  });
+
+  it("stop records session cost", () => {
+    const dbPath = tmpDb([["m1","s1","p","2026-07-11T10:00:00Z","claude-opus-4-8",100,100,0,0,0,0.1234]]);
+    const { code } = runHook("stop.mjs", { session_id: "s1" }, { TOKEFF_DB: dbPath });
+    expect(code).toBe(0);
+    const db = openDb(dbPath);
+    const row = db.prepare("SELECT message FROM interventions WHERE lever='session_cost_record'").get();
+    expect(row.message).toMatch(/\$0\.1234/);
+  });
+
+  it("fails open: bad DB path still exits 0 with no crash output", () => {
+    const { code } = runHook("user-prompt-submit.mjs", { session_id: "s1" }, { TOKEFF_DB: "Z:/does/not/exist/x.db" });
+    expect(code).toBe(0);
+  });
+});
