@@ -43,16 +43,33 @@ export function install({ configDir, projectRoot, dryRun = false }) {
   for (const [event, script] of Object.entries(HOOK_EVENTS)) {
     const command = `node "${path.join(projectRoot, "plugin", "hooks", script)}"`;
     settings.hooks[event] = settings.hooks[event] || [];
-    const already = settings.hooks[event].some(m => (m.hooks || []).some(h => h.command?.includes(script)));
-    if (!already) {
+    // A hook matching by script filename but pointing elsewhere is a stale
+    // install (e.g. the pre-merge token-efficiency repo) — repoint it.
+    let found = false;
+    for (const matcher of settings.hooks[event]) {
+      for (const h of matcher.hooks || []) {
+        if (h.command?.includes(script)) {
+          found = true;
+          if (h.command !== command) {
+            h.command = command;
+            changes.push(`hook ${event} repointed -> ${script}`);
+          }
+        }
+      }
+    }
+    if (!found) {
       settings.hooks[event].push({ hooks: [{ type: "command", command, timeout: 10 }] });
       changes.push(`hook ${event} -> ${script}`);
     }
   }
 
+  const statuslineCommand = `node "${path.join(projectRoot, "plugin", "statusline.mjs")}"`;
   if (!settings.statusLine) {
-    settings.statusLine = { type: "command", command: `node "${path.join(projectRoot, "plugin", "statusline.mjs")}"` };
-    changes.push("statusLine -> tokeff statusline");
+    settings.statusLine = { type: "command", command: statuslineCommand };
+    changes.push("statusLine -> stoke statusline");
+  } else if (settings.statusLine.command?.includes("statusline.mjs") && settings.statusLine.command !== statuslineCommand) {
+    settings.statusLine.command = statuslineCommand;
+    changes.push("statusLine repointed");
   } else {
     changes.push("statusLine already configured — left untouched");
   }
