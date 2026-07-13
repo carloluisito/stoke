@@ -14,6 +14,13 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         node-version: [20.x, 22.x]
+        exclude:
+          # better-sqlite3 ships no win32 prebuild for current Node 20, and
+          # Node 20's bundled node-gyp (v10) cannot detect the runner's
+          # Visual Studio 2026 to compile from source. Windows is covered
+          # on Node 22.
+          - os: windows-latest
+            node-version: 20.x
 
     steps:
       - uses: actions/checkout@v4
