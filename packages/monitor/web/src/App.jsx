@@ -4,10 +4,12 @@ import Sessions from "./pages/Sessions.jsx";
 import CacheHealth from "./pages/CacheHealth.jsx";
 import WasteReport from "./pages/WasteReport.jsx";
 import OptimizerLog from "./pages/OptimizerLog.jsx";
+import Proxy from "./pages/Proxy.jsx";
 
 const TABS = {
   Overview: <Overview />,
   Sessions: <Sessions />,
+  Proxy: <Proxy />,
   "Cache health": <CacheHealth />,
   "Waste report": <WasteReport />,
   "Optimizer log": <OptimizerLog />,
@@ -17,8 +19,8 @@ export default function App() {
   const [tab, setTab] = useState("Overview");
   return (
     <div style={{ maxWidth: 1100, margin: "0 auto", padding: 24 }}>
-      <h1 style={{ fontSize: 20, margin: "0 0 4px" }}>💰 tokeff</h1>
-      <p style={{ color: "var(--muted)", fontSize: 12, margin: "0 0 16px" }}>token spend · live, refreshes every 15s</p>
+      <h1 style={{ fontSize: 20, margin: "0 0 4px" }}>🔥 stoke</h1>
+      <p style={{ color: "var(--muted)", fontSize: 12, margin: "0 0 16px" }}>cache keep-alive + token spend · live, refreshes every 15s</p>
       <nav style={{ display: "flex", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
         {Object.keys(TABS).map((t) => (
           <button key={t} onClick={() => setTab(t)}

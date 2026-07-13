@@ -143,7 +143,29 @@ export function sessions(db, { limit = 50 } = {}) {
 }
 
 export function sessionDetail(db, sessionId) {
-  return db.prepare(`SELECT * FROM turns WHERE session_id = ? ORDER BY ts`).all(sessionId);
+  const turns = db.prepare(`SELECT * FROM turns WHERE session_id = ? ORDER BY ts`).all(sessionId);
+  if (turns.length === 0) return turns;
+  // Annotate each turn with proxy pings fired since the previous turn
+  // (time-window overlap — proxy sessions aren't keyed like transcript
+  // sessions, so this is an approximation across concurrent sessions).
+  let pings = [];
+  try {
+    pings = db
+      .prepare("SELECT ts FROM proxy_events WHERE kind='ping_fired' AND ts >= ? AND ts <= ? ORDER BY ts")
+      .all(turns[0].ts, turns[turns.length - 1].ts)
+      .map(r => r.ts);
+  } catch { /* proxy_events may be empty/missing — annotation is best-effort */ }
+  let pi = 0;
+  for (let i = 0; i < turns.length; i++) {
+    const prevTs = i > 0 ? turns[i - 1].ts : turns[0].ts;
+    let n = 0;
+    while (pi < pings.length && pings[pi] <= turns[i].ts) {
+      if (pings[pi] > prevTs) n += 1;
+      pi += 1;
+    }
+    turns[i].proxy_pings_since_prev = n;
+  }
+  return turns;
 }
 
 export function cacheStats(db) {

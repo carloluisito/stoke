@@ -17,9 +17,10 @@ export default function Overview() {
   if (!o || !daily) return <p style={{ color: "var(--muted)" }}>Loading…</p>;
   return (
     <div>
-      <Intro>💡 <b>What am I spending on Claude Code?</b> Totals cover all your profiles and projects, priced from the official per-token rates. Green = money caching saved you.</Intro>
+      <Intro>💡 <b>What am I spending on Claude Code?</b> Totals cover all your profiles and projects, priced from the official per-token rates. Green = money caching saved you. Net cost folds in the keep-alive proxy: spend + its pings − the rebuilds it prevented.</Intro>
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-        <Card label="Today" value={usd(o.today)} sub="API cost since midnight" />
+        <Card label="Net cost today" value={usd(o.netCost?.netCostUsd)} sub={`spend ${usd(o.netCost?.spendUsd)} + pings ${usd(o.netCost?.pingSpendUsd)} − prevented ${usd(o.netCost?.preventedUsd)}`} />
+        <Card label="Proxy" value={o.proxyUp ? "UP" : "DOWN"} sub={o.proxyUp ? "cache keep-alive active" : "keep-alive inactive — see Proxy tab"} accent={o.proxyUp ? "var(--good)" : "var(--critical)"} />
         <Card label="Last 7 days" value={usd(o.week)} sub="rolling week" />
         <Card label="Last 30 days" value={usd(o.month)} sub="rolling month" />
         <Card label="Saved by caching" value={usd(o.cacheSavedUsd)} sub="what the same work would have cost extra without the prompt cache" accent="var(--good)" />

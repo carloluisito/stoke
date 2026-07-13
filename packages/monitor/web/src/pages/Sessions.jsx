@@ -31,13 +31,17 @@ export default function Sessions() {
               <Tooltip cursor={{ fill: "rgba(255,255,255,0.04)" }} content={
                 <ChartTooltip rows={(payload) => {
                   const t = payload[0].payload;
-                  return [
+                  const rows = [
                     { name: "Cost", value: usd(t.cost_usd), color: "var(--s1)" },
                     { name: "Output tokens", value: tok(t.output_tokens) },
                     { name: "Fresh input", value: tok(t.input_tokens) },
                     { name: "Cache read", value: tok(t.cache_read) },
                     { name: "Cache write", value: tok(t.cache_write_5m + t.cache_write_1h) },
                   ];
+                  if (t.proxy_pings_since_prev > 0) {
+                    rows.push({ name: "Proxy pings since prev", value: `${t.proxy_pings_since_prev}`, color: "var(--good)" });
+                  }
+                  return rows;
                 }} />
               } />
               <Bar dataKey="cost_usd" fill="var(--s1)" radius={[4, 4, 0, 0]} stroke="var(--surface)" strokeWidth={1} />
