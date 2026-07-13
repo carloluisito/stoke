@@ -1,0 +1,11 @@
+{
+  "name": "@stoke/cli",
+  "version": "0.2.0",
+  "description": "The stoke command: supervises the cache keep-alive proxy and the spend monitor as one app.",
+  "type": "module",
+  "license": "MIT",
+  "bin": { "stoke": "bin/stoke.mjs" },
+  "scripts": {
+    "test": "node --test tests/supervisor.test.js"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "name": "@stoke/shared",
+  "version": "0.1.0",
+  "description": "Single source of pricing and savings math shared by the stoke proxy and monitor.",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "license": "MIT",
+  "exports": {
+    "./pricing.mjs": "./pricing.mjs",
+    "./pricing.json": "./pricing.json",
+    "./savings.mjs": "./savings.mjs"
+  }
+}

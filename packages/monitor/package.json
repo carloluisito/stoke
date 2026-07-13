@@ -1,0 +1,21 @@
+{
+  "name": "@stoke/monitor",
+  "version": "0.2.0",
+  "description": "Stoke's spend monitor: transcript + proxy-event ingest, SQLite analytics, and the unified dashboard.",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "test": "vitest run",
+    "start": "node scripts/start.mjs"
+  },
+  "dependencies": {
+    "@stoke/shared": "*",
+    "@fastify/static": "^9.3.0",
+    "better-sqlite3": "^12.11.1",
+    "chokidar": "^5.0.0",
+    "fastify": "^5.10.0"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.10"
+  }
+}
