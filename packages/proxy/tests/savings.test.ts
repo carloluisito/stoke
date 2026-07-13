@@ -370,7 +370,9 @@ test("computeSavings: cacheTtlSeconds=3600 means 65-min gap IS a saved rebuild",
     mkReal(65 * 60_000, "s1", 200_000),
   ];
   const r = computeSavings(events, cfg, -1, 999_999_999);
-  assert.equal(r.savedUsd, 1.25);
+  // 1-hour-TTL sessions price avoided rebuilds at the 1h cache-write rate
+  // (2× input) rather than the 5-minute rate (1.25×).
+  assert.equal(r.savedUsd, 2);
   assert.equal(r.rebuildsAvoided, 1);
 });
 

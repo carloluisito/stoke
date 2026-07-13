@@ -146,6 +146,13 @@ export function validateConfig(raw: unknown): Config {
   if (rebuildMultiplier <= 0) {
     throw new ConfigError(`pricing.rebuildMultiplier must be > 0, got ${rebuildMultiplier}`);
   }
+  let rebuildMultiplier1h: number | undefined;
+  if (raw.pricing.rebuildMultiplier1h !== undefined) {
+    rebuildMultiplier1h = requireNumber(raw.pricing.rebuildMultiplier1h, "pricing.rebuildMultiplier1h");
+    if (rebuildMultiplier1h <= 0) {
+      throw new ConfigError(`pricing.rebuildMultiplier1h must be > 0, got ${rebuildMultiplier1h}`);
+    }
+  }
   const evictAfterHours = requireNumber(raw.evictAfterHours, "evictAfterHours");
   if (evictAfterHours <= 0) {
     throw new ConfigError(`evictAfterHours must be > 0, got ${evictAfterHours}`);
@@ -253,7 +260,7 @@ export function validateConfig(raw: unknown): Config {
     maxConsecutivePings,
     minConsecutivePings,
     adaptiveCapWindow,
-    pricing: { cacheReadMultiplier, rebuildMultiplier },
+    pricing: { cacheReadMultiplier, rebuildMultiplier, rebuildMultiplier1h },
     evictAfterHours,
     requireT1,
     autoSetEnvVar,

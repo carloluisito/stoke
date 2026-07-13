@@ -4,6 +4,20 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import type { Config } from "./types.ts";
 import { validateConfig } from "./config-schema.ts";
+import { loadPricing, defaultModelPricingMap } from "@stoke/shared/pricing.mjs";
+
+// Model pricing defaults come from the shared effective-dated rules
+// (@stoke/shared/pricing.json) — the same file the monitor prices transcript
+// turns with. Loaded once at module init; config-file overrides still win.
+const sharedModelPricing: Record<string, { inputPerMtok: number }> = (() => {
+  try {
+    return defaultModelPricingMap(loadPricing(), new Date().toISOString());
+  } catch {
+    // Shared pricing unreadable (broken install) — fall back to empty and let
+    // explicit config carry pricing.
+    return {};
+  }
+})();
 
 export function defaultConfig(): Config {
   return {
@@ -18,6 +32,7 @@ export function defaultConfig(): Config {
     pricing: {
       cacheReadMultiplier: 0.1,
       rebuildMultiplier: 1.25,
+      rebuildMultiplier1h: 2.0,
     },
     evictAfterHours: 24,
     requireT1: false,
@@ -28,13 +43,7 @@ export function defaultConfig(): Config {
       maxPingSpendUsd: { perDay: 20, perMonth: 300, warnAt: 0.5 },
       maxPingsPerSession5h: 20,
     },
-    modelPricing: {
-      "claude-fable-5": { inputPerMtok: 10.0 },
-      "claude-opus-4-8": { inputPerMtok: 5.0 },
-      "claude-opus-4-7": { inputPerMtok: 5.0 },
-      "claude-sonnet-4-6": { inputPerMtok: 3.0 },
-      "claude-haiku-4-5": { inputPerMtok: 1.0 },
-    },
+    modelPricing: { ...sharedModelPricing },
     logPath: join(homedir(), ".stoke", "events.jsonl"),
     logRotation: {
       maxSizeBytes: 50 * 1024 * 1024,

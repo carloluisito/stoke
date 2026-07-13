@@ -13,6 +13,7 @@ import {
   parseRateLimitHeaders,
 } from "./usage-parser.ts";
 import { tryHandleStats, type StatsDeps } from "./stats-handler.ts";
+import { inputPerMtokFromMap } from "@stoke/shared/pricing.mjs";
 import { shouldTrackSession } from "./session-filter.ts";
 import type { OtelHandle } from "./otel.ts";
 
@@ -195,7 +196,7 @@ function handleRequest(
                 upsertResult.previousState === "abandoned")
             ) {
               const model = session?.model ?? "unknown";
-              const inputPerMtok = deps.config.modelPricing[model]?.inputPerMtok ?? 0;
+              const inputPerMtok = inputPerMtokFromMap(model, deps.config.modelPricing);
               const cacheCreationTokens = usage.cache_creation_input_tokens;
               const cacheReadTokens = usage.cache_read_input_tokens;
               // Three-way classification — see ResumeEvent.cacheOutcome docs.

@@ -165,6 +165,8 @@ export interface Config {
     cacheReadMultiplier: number;
     /** Cache-rebuild cost as a multiple of input rate. Anthropic published (5-min cache): 1.25. */
     rebuildMultiplier: number;
+    /** Cache-rebuild multiple for 1-hour-TTL sessions. Anthropic published: 2.0. Falls back to rebuildMultiplier when absent. */
+    rebuildMultiplier1h?: number;
   };
   /** Hours since lastRealRequestAt after which a session is removed from the in-memory map. Must exceed abandonAfterMinutes/60. */
   evictAfterHours: number;
