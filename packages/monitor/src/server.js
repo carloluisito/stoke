@@ -2,13 +2,36 @@ import Fastify from "fastify";
 import fastifyStatic from "@fastify/static";
 import fs from "node:fs";
 import path from "node:path";
-import { spendByDay, costByDay, cacheSavedUsd, spendByProject, spendByModel, sessions, sessionDetail, cacheStats, overview } from "./analytics/breakdowns.js";
+import { spendByDay, costByDay, cacheSavedUsd, spendByProject, spendByModel, sessions, sessionDetail, cacheStats, overview, netCost, proxySummary } from "./analytics/breakdowns.js";
 import { runDetectors, ttlAdvisor, savingsAttribution } from "./analytics/detectors.js";
+
+/** Live state from the proxy's loopback stats endpoint; null when it's down. */
+async function fetchProxyStats(config) {
+  try {
+    const resp = await fetch(config.stokeStatsUrl, { signal: AbortSignal.timeout(500) });
+    if (!resp.ok) return null;
+    return await resp.json();
+  } catch {
+    return null;
+  }
+}
 
 export function buildServer({ db, rules, config }) {
   const app = Fastify({ logger: false });
 
-  app.get("/api/overview", () => ({ ...overview(db), cacheSavedUsd: cacheSavedUsd(db, rules) }));
+  app.get("/api/overview", async () => {
+    const live = await fetchProxyStats(config);
+    return {
+      ...overview(db),
+      cacheSavedUsd: cacheSavedUsd(db, rules),
+      proxyUp: live !== null,
+      netCost: netCost(db, rules),
+    };
+  });
+  app.get("/api/proxy", async () => {
+    const live = await fetchProxyStats(config);
+    return { up: live !== null, live, ...proxySummary(db, rules) };
+  });
   app.get("/api/spend/daily", (req) => spendByDay(db, { days: Number(req.query.days) || 30 }));
   app.get("/api/spend/daily-cost", (req) => costByDay(db, rules, { days: Number(req.query.days) || 30 }));
   app.get("/api/spend/projects", () => spendByProject(db));

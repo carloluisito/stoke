@@ -1,6 +1,88 @@
-import { ruleFor } from "../pricing.js";
+import { ruleFor, loadPricing, defaultModelPricingMap } from "../pricing.js";
+import { computeSavings } from "@stoke/shared/savings.mjs";
 
 const M = 1_000_000;
+
+// ===== proxy-side numbers (from proxy_events, fed by ~/.stoke/events.jsonl) =====
+
+/** Sum of ping costs the proxy spent keeping caches warm in [fromTs, toTs]. */
+export function pingSpendUsd(db, fromTs, toTs) {
+  const r = db
+    .prepare("SELECT SUM(cost_usd) c FROM proxy_events WHERE kind = 'ping_fired' AND ts >= ? AND ts <= ?")
+    .get(fromTs, toTs);
+  return r.c || 0;
+}
+
+/**
+ * Rebuilds the proxy prevented in [fromTs, toTs], priced with the shared
+ * savings math over the full proxy event log (predecessor lookups must span
+ * the whole log, so we window inside computeSavings, not in SQL).
+ */
+export function preventedSavings(db, rules, fromTs, toTs) {
+  const rows = db.prepare("SELECT raw FROM proxy_events ORDER BY ts").all();
+  const events = [];
+  for (const r of rows) {
+    try { events.push(JSON.parse(r.raw)); } catch { /* skip torn rows */ }
+  }
+  const cfg = {
+    cacheTtlSeconds: 300,
+    pricing: { cacheReadMultiplier: 0.1, rebuildMultiplier: 1.25, rebuildMultiplier1h: 2.0 },
+    modelPricing: defaultModelPricingMap(rules ?? loadPricing(), new Date().toISOString()),
+  };
+  const s = computeSavings(events, cfg, Date.parse(fromTs), Date.parse(toTs));
+  return {
+    savedUsd: s.savedUsd,
+    rebuildsAvoided: s.rebuildsAvoided,
+    pingSpendUsd: s.pingSpendUsd,
+    netSavedUsd: s.netSavedUsd,
+  };
+}
+
+/**
+ * The one truthful cost model: what Claude actually spent (transcripts),
+ * plus what the proxy spent on pings, minus the rebuilds it prevented.
+ */
+export function netCost(db, rules, now = new Date()) {
+  const dayStart = now.toISOString().slice(0, 10);
+  const nowIso = now.toISOString();
+  const spend = db.prepare("SELECT SUM(cost_usd) c FROM turns WHERE ts >= ?").get(dayStart).c || 0;
+  const prevented = preventedSavings(db, rules, dayStart, nowIso);
+  return {
+    spendUsd: spend,
+    pingSpendUsd: prevented.pingSpendUsd,
+    preventedUsd: prevented.savedUsd,
+    rebuildsAvoided: prevented.rebuildsAvoided,
+    netCostUsd: spend + prevented.pingSpendUsd - prevented.savedUsd,
+  };
+}
+
+/** Aggregates for the dashboard's Proxy page. */
+export function proxySummary(db, rules, now = new Date()) {
+  const dayStart = now.toISOString().slice(0, 10);
+  const nowIso = now.toISOString();
+  const counts = Object.fromEntries(
+    db.prepare("SELECT kind, COUNT(*) n FROM proxy_events WHERE ts >= ? GROUP BY kind").all(dayStart)
+      .map(r => [r.kind, r.n]),
+  );
+  const resumes = db
+    .prepare("SELECT raw FROM proxy_events WHERE kind = 'session_resumed' AND ts >= ? ORDER BY ts DESC LIMIT 50")
+    .all(dayStart)
+    .map(r => { try { return JSON.parse(r.raw); } catch { return null; } })
+    .filter(Boolean);
+  return {
+    today: {
+      ...preventedSavings(db, rules, dayStart, nowIso),
+      pingsFired: counts.ping_fired || 0,
+      pingsSkipped: counts.ping_skipped || 0,
+      proxyStarts: counts.proxy_started || 0,
+      resumes: {
+        survived: resumes.filter(r => r.cacheOutcome === "survived").length,
+        partial: resumes.filter(r => r.cacheOutcome === "partial").length,
+        rebuilt: resumes.filter(r => r.cacheOutcome === "rebuilt").length,
+      },
+    },
+  };
+}
 
 // Daily spend broken down by cost component IN DOLLARS (not tokens) — dollar
 // magnitudes are comparable across components; raw token counts are not.

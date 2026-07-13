@@ -19,6 +19,12 @@ export function openDb(dbPath) {
       id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT, session_id TEXT,
       lever TEXT, mode TEXT, message TEXT
     );
+    CREATE TABLE IF NOT EXISTS proxy_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT, kind TEXT, session_key TEXT,
+      tokens INT, cost_usd REAL, raw TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_proxy_events_ts ON proxy_events(ts);
+    CREATE INDEX IF NOT EXISTS idx_proxy_events_kind ON proxy_events(kind, ts);
   `);
   return db;
 }

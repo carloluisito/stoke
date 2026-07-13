@@ -53,6 +53,23 @@ function rewriteWaste(turn, rules) {
   return writeCost - readCost;
 }
 
+/**
+ * Whether the stoke proxy was alive during [fromIso, toIso] (any proxy event
+ * in the window). Expiries the proxy prevented never show up as rewrites in
+ * transcripts — so a cache_expiry finding with the proxy up means the proxy
+ * was blocked from pinging (budget cap, ping cap), which changes the fix.
+ */
+function proxyActiveDuring(db, fromIso, toIso) {
+  try {
+    const r = db
+      .prepare("SELECT 1 FROM proxy_events WHERE ts >= ? AND ts <= ? LIMIT 1")
+      .get(fromIso, toIso);
+    return r !== undefined;
+  } catch {
+    return false;
+  }
+}
+
 export function runDetectors(db, rules) {
   const findings = [];
   for (const [sessionId, turns] of allSessions(db)) {
@@ -62,10 +79,14 @@ export function runDetectors(db, rules) {
     // cache_expiry / cache_invalidation
     for (const ev of cacheRewriteEvents(turns, ttlMs)) {
       const wastedUsd = rewriteWaste(ev.turn, rules);
+      const gapStartIso = new Date(new Date(ev.turn.ts) - ev.gapMs).toISOString();
+      const proxyWasUp = ev.expired && proxyActiveDuring(db, gapStartIso, ev.turn.ts);
       findings.push(ev.expired ? {
         type: "cache_expiry", session_id: sessionId, project, ts: ev.turn.ts, wastedUsd,
-        recommendation: `Gap of ${Math.round(ev.gapMs / 60000)}m exceeded the ${Math.round(ttlMs / 60000)}m cache TTL; the full context was re-billed. Keep sessions active, or /clear when switching topics after a break.`,
-        detail: { gapMinutes: Math.round(ev.gapMs / 60000), ttlMinutes: Math.round(ttlMs / 60000) },
+        recommendation: proxyWasUp
+          ? `Gap of ${Math.round(ev.gapMs / 60000)}m exceeded the ${Math.round(ttlMs / 60000)}m cache TTL and the stoke proxy could not prevent it — check its ping budget caps (stoke status).`
+          : `Gap of ${Math.round(ev.gapMs / 60000)}m exceeded the ${Math.round(ttlMs / 60000)}m cache TTL; the full context was re-billed. Keep the stoke proxy running so it pings the cache warm, or /clear when switching topics after a break.`,
+        detail: { gapMinutes: Math.round(ev.gapMs / 60000), ttlMinutes: Math.round(ttlMs / 60000), proxyWasUp },
       } : {
         type: "cache_invalidation", session_id: sessionId, project, ts: ev.turn.ts, wastedUsd,
         recommendation: "Cache prefix was invalidated mid-session (early context changed — e.g. CLAUDE.md or settings edit). Avoid mutating shared context during active sessions.",

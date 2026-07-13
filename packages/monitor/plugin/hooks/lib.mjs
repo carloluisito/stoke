@@ -1,8 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
+import os from "node:os";
 import { fileURLToPath } from "node:url";
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+const stokeDir = path.join(os.homedir(), ".stoke");
 
 export async function readStdin() {
   let data = "";
@@ -11,9 +13,17 @@ export async function readStdin() {
 }
 
 export function loadOptimizerConfig() {
+  // Precedence: TOKEFF_OPTIMIZER_CONFIG file > ~/.stoke/config.json `optimizer`
+  // section > legacy plugin/optimizer-config.json.
   try {
-    const p = process.env.TOKEFF_OPTIMIZER_CONFIG || path.join(projectRoot, "plugin", "optimizer-config.json");
-    return JSON.parse(fs.readFileSync(p, "utf8"));
+    if (process.env.TOKEFF_OPTIMIZER_CONFIG) {
+      return JSON.parse(fs.readFileSync(process.env.TOKEFF_OPTIMIZER_CONFIG, "utf8"));
+    }
+    try {
+      const stoke = JSON.parse(fs.readFileSync(path.join(stokeDir, "config.json"), "utf8"));
+      if (stoke.optimizer && stoke.optimizer.levers) return stoke.optimizer;
+    } catch { /* fall through to legacy file */ }
+    return JSON.parse(fs.readFileSync(path.join(projectRoot, "plugin", "optimizer-config.json"), "utf8"));
   } catch {
     return { levers: {}, thresholds: { bloatContextTokens: 120000, largeFileRereadBytes: 100000 } };
   }
@@ -22,7 +32,7 @@ export function loadOptimizerConfig() {
 export async function openDbSafe() {
   try {
     const { openDb } = await import("../../src/db.js");
-    const dbPath = process.env.TOKEFF_DB || path.join(projectRoot, "data", "tokeff.db");
+    const dbPath = process.env.TOKEFF_DB || path.join(stokeDir, "stoke.db");
     return openDb(dbPath);
   } catch {
     return null;
@@ -47,7 +57,7 @@ export function sessionTtlMs(turns) {
 }
 
 export function readsSidecarPath(sessionId) {
-  return path.join(projectRoot, "data", "session-reads", `${sessionId}.json`);
+  return path.join(stokeDir, "session-reads", `${sessionId}.json`);
 }
 
 export function loadReads(sessionId) {
