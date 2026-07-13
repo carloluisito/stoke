@@ -198,7 +198,8 @@ function cmdInstall() {
     process.exit(r.status ?? 1);
   }
 
-  // 3. Windows Scheduled Task: start stoke at logon.
+  // 3. Auto-start at logon. schtasks /SC ONLOGON needs elevation, so fall
+  // back to a hidden-window launcher in the user's Startup folder.
   if (!rest.includes("--no-task") && process.platform === "win32") {
     const stokeBin = fileURLToPath(import.meta.url);
     const tr = `"${process.execPath}" "${stokeBin}" start --quiet`;
@@ -206,8 +207,12 @@ function cmdInstall() {
     if (t.status === 0) {
       console.log("Scheduled Task 'Stoke' registered — stoke starts at every logon.");
     } else {
-      console.error(`Scheduled Task registration failed: ${t.stderr?.toString().trim()}`);
-      console.error("You can still start stoke manually with 'stoke start'.");
+      const startupDir = path.join(process.env.APPDATA ?? path.join(os.homedir(), "AppData", "Roaming"), "Microsoft", "Windows", "Start Menu", "Programs", "Startup");
+      const vbs = path.join(startupDir, "stoke.vbs");
+      const escaped = (p) => `""${p}""`;
+      fs.mkdirSync(startupDir, { recursive: true });
+      fs.writeFileSync(vbs, `' Auto-start stoke (cache keep-alive proxy + spend monitor) at logon, hidden.\r\nCreateObject("Wscript.Shell").Run "${escaped(process.execPath)} ${escaped(stokeBin)} start --quiet", 0, False\r\n`);
+      console.log(`Scheduled Task needs elevation — wrote Startup launcher instead: ${vbs}`);
     }
   }
 
@@ -218,6 +223,8 @@ function cmdUninstall() {
   if (process.platform === "win32") {
     const t = spawnSync("schtasks", ["/Delete", "/TN", "Stoke", "/F"], { stdio: "pipe" });
     console.log(t.status === 0 ? "Scheduled Task 'Stoke' removed." : "Scheduled Task 'Stoke' not present.");
+    const vbs = path.join(process.env.APPDATA ?? path.join(os.homedir(), "AppData", "Roaming"), "Microsoft", "Windows", "Start Menu", "Programs", "Startup", "stoke.vbs");
+    try { fs.unlinkSync(vbs); console.log("Startup launcher removed."); } catch { /* not present */ }
   }
   proxyPassthrough(["unset-env"]);
   console.log("Claude Code hooks/skills were left in place — remove them from your CLAUDE_CONFIG_DIR settings.json if you want them gone.");

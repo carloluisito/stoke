@@ -26,8 +26,11 @@ jobs:
 
       - run: npm ci
 
-      - name: Typecheck
-        run: npm run typecheck
+      - name: Typecheck (proxy)
+        run: npm run typecheck -w @stoke/proxy
 
-      - name: Test
+      - name: Test (all workspaces)
         run: npm test
+
+      - name: Build dashboard
+        run: npm ci --prefix packages/monitor/web && npm run build --prefix packages/monitor/web
