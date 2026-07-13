@@ -12,7 +12,7 @@ import {
   parseSseStream,
   parseRateLimitHeaders,
 } from "./usage-parser.ts";
-import { tryHandleDashboard, type DashboardDeps } from "./dashboard-handler.ts";
+import { tryHandleStats, type StatsDeps } from "./stats-handler.ts";
 import { shouldTrackSession } from "./session-filter.ts";
 import type { OtelHandle } from "./otel.ts";
 
@@ -36,8 +36,8 @@ export interface ProxyDeps {
   logger: JsonlLogger;
   config: Config;
   upstreamUrl?: string;
-  /** When set, dashboard routes (/dashboard, /api/state, /api/reload) are served from this proxy. */
-  dashboard?: Omit<DashboardDeps, "registry" | "logger" | "config">;
+  /** When set, stats routes (/api/health, /_stoke/stats) are served from this proxy. */
+  stats?: Omit<StatsDeps, "registry" | "logger" | "config">;
   /** Optional OpenTelemetry handle. When null/undefined, no telemetry. */
   otel?: OtelHandle | null;
 }
@@ -46,11 +46,10 @@ export function createProxyServer(deps: ProxyDeps): Server {
   const upstream = new URL(deps.upstreamUrl ?? UPSTREAM_DEFAULT);
 
   return createServer((req: IncomingMessage, res: ServerResponse) => {
-    // Dashboard routes are GETs/POSTs to /api/* or /dashboard/* — handle before
-    // buffering the body, since the dashboard endpoints don't need request body
-    // parsing the same way Anthropic forwarding does.
-    if (deps.dashboard && tryHandleDashboard(req, res, {
-      ...deps.dashboard,
+    // Stats routes are plain GETs — handle before buffering the body, since
+    // they don't need request body parsing the way Anthropic forwarding does.
+    if (deps.stats && tryHandleStats(req, res, {
+      ...deps.stats,
       registry: deps.registry,
       logger: deps.logger,
       config: deps.config,

@@ -20,9 +20,11 @@ function runCli(args: string[], timeoutMs = 15000): Promise<{ code: number | nul
       CACHE_KEEPALIVE_LOG_PATH: join(logDir, "events.jsonl"),
       CACHE_KEEPALIVE_AUTO_SET_ENV: "0",
     };
-    const child = spawn("tsx", [join(process.cwd(), "src/cli.ts"), ...args], {
+    // Spawn node with --import tsx rather than the "tsx" bin shim: the shim
+    // lives in the workspace root's node_modules/.bin (hoisted), which is not
+    // on PATH when tests run from the package directory.
+    const child = spawn(process.execPath, ["--import", "tsx", join(process.cwd(), "src/cli.ts"), ...args], {
       stdio: ["ignore", "pipe", "pipe"],
-      shell: process.platform === "win32",
       env,
     });
     let out = "";

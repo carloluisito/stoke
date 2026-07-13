@@ -1,6 +1,5 @@
 // src/cli.ts
 import { spawn } from "node:child_process";
-import { randomBytes } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync, chmodSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
@@ -134,7 +133,6 @@ async function startProxyAndSchedulerLifecycle(
   );
   registry.evictAbandoned(now0, config.evictAfterHours * 3600_000);
   let activeConfig = config;
-  activeConfig.authToken = randomBytes(16).toString("hex");
   let guard = new BudgetGuard(activeConfig);
   const fetcher = makeHttpFetcher("https://api.anthropic.com");
   const startedAt = Date.now();
@@ -159,15 +157,9 @@ async function startProxyAndSchedulerLifecycle(
     logger,
     config: activeConfig,
     otel: otelHandle,
-    dashboard: {
+    stats: {
       startedAt,
       version,
-      onReload: (next) => {
-        next.authToken = activeConfig.authToken;
-        activeConfig = next;
-        guard = new BudgetGuard(next);
-        console.log(`stoke: config reloaded · plan=${next.plan}`);
-      },
     },
   });
 
@@ -176,9 +168,8 @@ async function startProxyAndSchedulerLifecycle(
   await new Promise<void>((resolve) => {
     proxy.listen(activeConfig.listen.port, activeConfig.listen.host, () => {
       console.log(`stoke listening on ${baseUrl}`);
-      const dashboardUrl = `${baseUrl}/dashboard?token=${activeConfig.authToken}`;
-      console.log(`Dashboard: ${dashboardUrl}`);
-      console.log("  Bookmark this URL. The token is required for every dashboard request and regenerates on each restart.");
+      console.log(`Stats endpoint: ${baseUrl}/_stoke/stats (loopback only)`);
+      console.log("  The unified dashboard lives in the stoke monitor (default http://localhost:5599).");
 
       if (activeConfig.autoSetEnvVar) {
         const result = ensurePersistentBaseUrl(baseUrl);

@@ -5,7 +5,7 @@ import type { Config } from "./types.ts";
 import { Registry } from "./registry.ts";
 import { JsonlLogger } from "./logger.ts";
 import { computeSavingsMulti, computeCacheHitRate } from "./savings.ts";
-import { computeResumesInWindow } from "./dashboard-handler.ts";
+import { computeResumesInWindow } from "./stats-handler.ts";
 import { startOfDayMs, startOfMonthMs } from "./time-windows.ts";
 
 export interface DigestDeps {

@@ -1,11 +1,12 @@
-// src/dashboard-handler.ts
-// Serves the monitoring dashboard and its data API.
-// Mounted ahead of the Anthropic forwarder in src/proxy.ts.
+// src/stats-handler.ts
+// Serves the proxy's live-state JSON for the unified stoke dashboard (the
+// monitor process on its own port renders it). Mounted ahead of the Anthropic
+// forwarder in src/proxy.ts.
+//
+// Routes:
+//   GET /api/health   — liveness, no auth (unchanged from the old dashboard)
+//   GET /_stoke/stats — full live state; loopback-only, no token
 
-import { readFileSync, existsSync, writeFileSync, mkdirSync } from "node:fs";
-import { timingSafeEqual } from "node:crypto";
-import { join, dirname, normalize, sep } from "node:path";
-import { fileURLToPath } from "node:url";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Config, Session } from "./types.ts";
 import { Registry } from "./registry.ts";
@@ -16,8 +17,6 @@ import {
   startOfBillingCycleMs,
 } from "./time-windows.ts";
 import { extractProjectPath } from "./project-path.ts";
-import { configPath, loadConfig } from "./config.ts";
-import { validateReloadBody } from "./config-schema.ts";
 import {
   computeSavingsMulti,
   computeCacheHitRate,
@@ -26,20 +25,17 @@ import {
 import { effectiveConsecutivePingCap } from "./scheduler.ts";
 import type { EventRecord } from "./types.ts";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const DASHBOARD_DIR = join(__dirname, "..", "dashboard");
-
-// Heuristic: ~1 rewrite avoided per 7 successful pings, based on the
-// strategy doc's break-even math (cache_read 0.1× vs cache_write 1.25×;
-// 7 reads roughly equal one write).
-const PINGS_PER_REWRITE = 7;
-
 /**
  * Default Anthropic prompt-cache TTL in seconds (5-minute). The runtime path
  * reads `config.cacheTtlSeconds` and passes it to `deriveCacheStatus`; this
  * constant is the back-compat default for callers that don't pass one.
  */
 export const CACHE_TTL_SECONDS = 300;
+
+// Heuristic: ~1 rewrite avoided per 7 successful pings, based on the
+// strategy doc's break-even math (cache_read 0.1× vs cache_write 1.25×;
+// 7 reads roughly equal one write).
+const PINGS_PER_REWRITE = 7;
 
 /**
  * The cache-warmth view of a session. Lifecycle state (`Session.state`) tells
@@ -62,31 +58,29 @@ export function deriveCacheStatus(
   return idleSec < ttlSec ? "warm" : "cold";
 }
 
-export interface DashboardDeps {
+export interface StatsDeps {
   registry: Registry;
   logger: JsonlLogger;
   config: Config;
   startedAt: number;
   /** Package version, read from package.json at startup; surfaced via /api/health. */
   version?: string;
-  /** Called when /api/reload succeeds; receives the new Config object. */
-  onReload?: (next: Config) => void;
 }
 
 /**
- * Try to handle a request as a dashboard route.
+ * Try to handle a request as a stats route.
  * Returns true if handled (response sent), false otherwise.
  */
-export function tryHandleDashboard(
+export function tryHandleStats(
   req: IncomingMessage,
   res: ServerResponse,
-  deps: DashboardDeps,
+  deps: StatsDeps,
 ): boolean {
   const url = req.url ?? "";
   const pathOnly = url.split("?")[0];
 
-  // /api/health is the only route that bypasses the auth gate. It returns
-  // minimal liveness info and intentionally leaks no session metadata.
+  // /api/health returns minimal liveness info and intentionally leaks no
+  // session metadata, so it stays reachable from anywhere the proxy is.
   if (req.method === "GET" && pathOnly === "/api/health") {
     sendJson(res, 200, {
       ok: true,
@@ -97,73 +91,27 @@ export function tryHandleDashboard(
     return true;
   }
 
-  const isGuarded =
-    pathOnly === "/dashboard" ||
-    pathOnly.startsWith("/dashboard/") ||
-    pathOnly.startsWith("/api/");
-  if (isGuarded) {
-    if (!requireToken(req, deps.config.authToken)) {
-      sendJson(res, 401, { ok: false, error: "auth required" });
+  if (req.method === "GET" && pathOnly === "/_stoke/stats") {
+    if (!isLoopback(req)) {
+      sendJson(res, 403, { ok: false, error: "loopback only" });
       return true;
     }
-  }
-
-  if (req.method === "GET" && pathOnly === "/api/state") {
     sendJson(res, 200, buildState(deps));
     return true;
   }
-  if (req.method === "GET" && pathOnly === "/api/stream") {
-    handleStream(req, res, deps);
-    return true;
-  }
-  if (req.method === "POST" && pathOnly === "/api/reload") {
-    handleReload(req, res, deps);
-    return true;
-  }
-  if (req.method === "GET" && (pathOnly === "/dashboard" || pathOnly === "/dashboard/")) {
-    serveStatic(res, "index.html", deps.config.authToken);
-    return true;
-  }
-  if (req.method === "GET" && pathOnly.startsWith("/dashboard/")) {
-    const file = pathOnly.slice("/dashboard/".length);
-    serveStatic(res, file, deps.config.authToken);
-    return true;
-  }
+
   return false;
 }
 
-const HEX32 = 32;
-function requireToken(req: IncomingMessage, expected: string): boolean {
-  if (!expected || expected.length !== HEX32) return false;
-
-  const auth = req.headers.authorization;
-  if (typeof auth === "string" && auth.startsWith("Bearer ")) {
-    const presented = auth.slice("Bearer ".length);
-    if (constantTimeEq(presented, expected)) return true;
-  }
-
-  const url = req.url ?? "";
-  const qIndex = url.indexOf("?");
-  if (qIndex !== -1) {
-    const pathOnly = url.slice(0, qIndex);
-    const queryAllowed = pathOnly === "/dashboard" || pathOnly === "/api/stream";
-    if (queryAllowed) {
-      const params = new URLSearchParams(url.slice(qIndex + 1));
-      const presented = params.get("token") ?? "";
-      if (constantTimeEq(presented, expected)) return true;
-    }
-  }
-  return false;
-}
-
-function constantTimeEq(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  return timingSafeEqual(Buffer.from(a, "utf8"), Buffer.from(b, "utf8"));
+/** Full state is session metadata — only the local machine may read it. */
+export function isLoopback(req: IncomingMessage): boolean {
+  const addr = req.socket?.remoteAddress ?? "";
+  return addr === "127.0.0.1" || addr === "::1" || addr === "::ffff:127.0.0.1";
 }
 
 // ===== state construction ============================================
 
-function buildState(deps: DashboardDeps): Record<string, unknown> {
+function buildState(deps: StatsDeps): Record<string, unknown> {
   const now = new Date();
   const nowMs = now.getTime();
   const sessions = deps.registry.all();
@@ -333,12 +281,6 @@ function buildEnterpriseCap(
 }
 
 /**
- * Lifecycle counts (sessionsActive/Paused/Abandoned) match `Session.state`
- * for backward compat. `sessionsCold` is a derived subset: it counts the
- * active sessions whose cache has expired (idle > TTL). The renderer
- * computes warm = sessionsActive - sessionsCold.
- */
-/**
  * Aggregate `session_resumed` events in [fromMs, toMs]. Split between
  * "survived" (proxy succeeded — cache outlasted the pause/abandon) and
  * "rebuilt" (proxy failed — user paid the rebuild cost on resume).
@@ -373,6 +315,12 @@ export function computeResumesInWindow(
   return { survived, partial, rebuilt, rebuildSpentUsd };
 }
 
+/**
+ * Lifecycle counts (sessionsActive/Paused/Abandoned) match `Session.state`
+ * for backward compat. `sessionsCold` is a derived subset: it counts the
+ * active sessions whose cache has expired (idle > TTL). The renderer
+ * computes warm = sessionsActive - sessionsCold.
+ */
 export function buildSessionStateTotals(
   sessions: Session[],
   nowMs: number,
@@ -504,160 +452,8 @@ function tailEvents(events: readonly EventRecord[], n: number, registry: Registr
     }
     out.push(enriched);
   }
-  // Dashboard expects newest first.
+  // Newest first.
   return out.reverse();
-}
-
-// ===== /api/stream (Server-Sent Events) ==============================
-//
-// On connect: send an initial `snapshot` event. After that, every time the
-// JsonlLogger receives a write, we re-emit both the raw `log` event and a
-// fresh `snapshot`. A 15s heartbeat keeps the connection alive when the
-// proxy is idle (no real requests, no pings firing).
-
-const HEARTBEAT_MS = 15_000;
-const SNAPSHOT_DEBOUNCE_MS = 500;
-
-function handleStream(
-  req: IncomingMessage,
-  res: ServerResponse,
-  deps: DashboardDeps,
-): void {
-  res.writeHead(200, {
-    "content-type": "text/event-stream; charset=utf-8",
-    "cache-control": "no-store, must-revalidate",
-    connection: "keep-alive",
-    "x-accel-buffering": "no", // disable proxy buffering if anything upstream looks at this
-  });
-
-  // Disable Nagle so small SSE writes (especially debounced snapshots after
-  // an idle gap) ship immediately instead of being held in the TCP send buffer.
-  if (res.socket) res.socket.setNoDelay(true);
-
-  const sendEvent = (event: string, data: unknown): void => {
-    try {
-      res.write(`event: ${event}\n`);
-      res.write(`data: ${JSON.stringify(data)}\n\n`);
-    } catch {
-      // Connection closed mid-write; cleanup happens via 'close' handler.
-    }
-  };
-
-  // Send the initial snapshot immediately so the dashboard renders without
-  // waiting for the first proxy event.
-  sendEvent("snapshot", buildState(deps));
-
-  // Push raw events immediately; coalesce snapshot rebuilds at SNAPSHOT_DEBOUNCE_MS
-  // so a burst of writes costs one buildState, not N.
-  let pendingSnapshot: NodeJS.Timeout | null = null;
-  const unsubscribe = deps.logger.subscribe((rawEvent) => {
-    sendEvent("log", rawEvent);
-    if (pendingSnapshot) return;
-    pendingSnapshot = setTimeout(() => {
-      pendingSnapshot = null;
-      sendEvent("snapshot", buildState(deps));
-    }, SNAPSHOT_DEBOUNCE_MS);
-  });
-
-  const heartbeat = setInterval(() => {
-    try {
-      res.write(": heartbeat\n\n");
-    } catch {
-      // Ignored — close handler below will clean up.
-    }
-  }, HEARTBEAT_MS);
-
-  const cleanup = (): void => {
-    clearInterval(heartbeat);
-    if (pendingSnapshot) {
-      clearTimeout(pendingSnapshot);
-      pendingSnapshot = null;
-    }
-    unsubscribe();
-    try { res.end(); } catch { /* already ended */ }
-  };
-
-  req.on("close", cleanup);
-  req.on("error", cleanup);
-}
-
-// ===== /api/reload ===================================================
-
-function handleReload(
-  req: IncomingMessage,
-  res: ServerResponse,
-  deps: DashboardDeps,
-): void {
-  const chunks: Buffer[] = [];
-  req.on("data", (c: Buffer) => chunks.push(c));
-  req.on("end", () => {
-    const bodyStr = Buffer.concat(chunks).toString("utf8");
-    try {
-      if (bodyStr.trim().length > 0) {
-        // Validate the incoming body BEFORE touching disk. Unknown keys,
-        // wrong types, and out-of-range numbers all reject at this gate.
-        const incoming = validateReloadBody(JSON.parse(bodyStr));
-        const targetPath = configPath();
-        let existing: Record<string, unknown> = {};
-        if (existsSync(targetPath)) {
-          try {
-            existing = JSON.parse(readFileSync(targetPath, "utf8"));
-          } catch {
-            existing = {};
-          }
-        }
-        const merged = { ...existing, ...incoming };
-        // Ensure ~/.stoke/ exists. Fresh installs (proxy ran but config dir
-        // was wiped) hit this path before any other component creates the dir.
-        mkdirSync(dirname(targetPath), { recursive: true });
-        writeFileSync(targetPath, JSON.stringify(merged, null, 2));
-      }
-      const next = loadConfig();
-      if (deps.onReload) deps.onReload(next);
-      sendJson(res, 200, { ok: true, plan: next.plan });
-    } catch (err) {
-      sendJson(res, 400, { ok: false, error: (err as Error).message });
-    }
-  });
-  req.on("error", () => sendJson(res, 500, { ok: false, error: "request stream error" }));
-}
-
-// ===== static file serving ===========================================
-
-const MIME: Record<string, string> = {
-  ".html": "text/html; charset=utf-8",
-  ".js":   "text/javascript; charset=utf-8",
-  ".jsx":  "text/javascript; charset=utf-8",
-  ".css":  "text/css; charset=utf-8",
-  ".json": "application/json; charset=utf-8",
-};
-
-function serveStatic(res: ServerResponse, file: string, authToken: string): void {
-  // Prevent path traversal: the resolved file MUST live inside DASHBOARD_DIR.
-  const resolved = normalize(join(DASHBOARD_DIR, file));
-  if (!resolved.startsWith(DASHBOARD_DIR + sep) && resolved !== DASHBOARD_DIR) {
-    res.writeHead(403);
-    res.end("forbidden");
-    return;
-  }
-  if (!existsSync(resolved)) {
-    res.writeHead(404);
-    res.end("not found");
-    return;
-  }
-  const ext = resolved.slice(resolved.lastIndexOf("."));
-  const contentType = MIME[ext] ?? "application/octet-stream";
-  let content: Buffer | string = readFileSync(resolved);
-  if (ext === ".html") {
-    content = content.toString("utf8").replace("__TOKEN_PLACEHOLDER__", authToken);
-  }
-  res.writeHead(200, {
-    "content-type": contentType,
-    "cache-control": "no-store, must-revalidate",
-    pragma: "no-cache",
-    expires: "0",
-  });
-  res.end(content);
 }
 
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
