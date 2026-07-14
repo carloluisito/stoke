@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--page:#0d0d0d;--surface:#1a1a19;--surface2:#232320;--surface3:#2c2c28;--border:rgba(255,255,255,.09);--border2:rgba(255,255,255,.15);--text:#ececea;--dim:#9a9a94;--faint:#6b6b64;--s-output:#3987e5;--s-input:#199e70;--s-cwrite:#c98500;--s-cread:#2a9d3a;--good:#2bb32b;--warn:#fab219;--serious:#ec835a;--critical:#e14b4b;--accent:#3987e5;--accent-weak:rgba(57,135,229,.14);--shadow:0 1px 2px rgba(0,0,0,.45),0 10px 30px rgba(0,0,0,.30);--radius:14px;--radius-sm:9px}
+[data-theme="light"]{--page:#f6f6f3;--surface:#ffffff;--surface2:#f2f2ec;--surface3:#e9e9e1;--border:rgba(0,0,0,.10);--border2:rgba(0,0,0,.17);--text:#191917;--dim:#5a5a52;--faint:#8a8a80;--s-output:#2f6fc0;--s-input:#127a56;--s-cwrite:#9a6600;--s-cread:#1a8a2a;--good:#0a8f0a;--warn:#a67400;--serious:#cf5f34;--critical:#c93030;--accent:#2f6fc0;--accent-weak:rgba(47,111,192,.12);--shadow:0 1px 2px rgba(0,0,0,.06),0 10px 30px rgba(0,0,0,.09)}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--page);color:var(--text);font-family:'IBM Plex Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased;font-size:14px;line-height:1.45}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+.mono{font-family:'IBM Plex Mono',ui-monospace,monospace}
+.num{font-family:'IBM Plex Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
+.dim{color:var(--dim)}.faint{color:var(--faint)}
+.upper{text-transform:uppercase;letter-spacing:.09em}
+.app{min-height:100vh;display:flex;flex-direction:column}
+.hdr{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 26px;background:color-mix(in srgb,var(--page) 82%,transparent);backdrop-filter:blur(12px);border-bottom:1px solid var(--border)}
+.brand{font-weight:700;font-size:19px;letter-spacing:-.02em;display:flex;align-items:baseline;gap:9px}
+.brandsub{font-size:11px;font-weight:500;color:var(--faint);letter-spacing:.04em}
+.navtabs{display:flex;gap:4px;background:var(--surface);border:1px solid var(--border);padding:4px;border-radius:11px}
+.tab{appearance:none;border:0;background:transparent;color:var(--dim);font:inherit;font-weight:600;font-size:13px;padding:7px 15px;border-radius:8px;cursor:pointer;transition:color .16s,background .16s;white-space:nowrap}
+.tab:hover{color:var(--text)}
+.tab.active{background:var(--surface3);color:var(--text)}
+.tab:focus-visible,.iconbtn:focus-visible,.th:focus-visible,.rowbtn:focus-visible,.chipbtn:focus-visible,.seg button:focus-visible,.linkbtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.pill{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:600;padding:6px 11px;border-radius:20px;border:1px solid var(--border);background:var(--surface)}
+.pill .dot{width:8px;height:8px;border-radius:50%;background:var(--good);box-shadow:0 0 0 3px color-mix(in srgb,var(--good) 24%,transparent)}
+.pill.down{color:var(--critical)}.pill.down .dot{background:var(--critical);box-shadow:0 0 0 3px color-mix(in srgb,var(--critical) 24%,transparent)}
+.chip{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--dim);padding:6px 11px;border-radius:20px;border:1px solid var(--border);background:var(--surface)}
+.livedot{width:7px;height:7px;border-radius:50%;background:var(--good);animation:pulse 2.4s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.82)}}
+.iconbtn{appearance:none;width:34px;height:34px;border-radius:9px;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer;font-size:15px;display:grid;place-items:center;transition:background .16s,border-color .16s}
+.iconbtn:hover{background:var(--surface2);border-color:var(--border2)}
+main{flex:1;max-width:1180px;width:100%;margin:0 auto;padding:26px 26px 80px}
+.pagetitle{font-size:15px;font-weight:600;letter-spacing:-.01em}
+.pagesub{font-size:12.5px;color:var(--dim);margin-top:3px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;box-shadow:var(--shadow);transition:border-color .18s,transform .18s}
+.card.pad0{padding:0;overflow:hidden}
+.hoverable{cursor:pointer}
+.hoverable:hover{border-color:var(--border2);transform:translateY(-1px)}
+.grid{display:grid;gap:14px}
+.cards4{grid-template-columns:repeat(4,1fr)}
+.cards3{grid-template-columns:repeat(3,1fr)}
+.cards2{grid-template-columns:repeat(2,1fr)}
+@media(max-width:900px){.cards4{grid-template-columns:repeat(2,1fr)}.cards3{grid-template-columns:1fr}.cards2{grid-template-columns:1fr}}
+.klabel{font-size:11px;font-weight:600;color:var(--faint);letter-spacing:.08em;text-transform:uppercase}
+.kval{font-size:27px;font-weight:600;letter-spacing:-.02em;margin-top:8px}
+.kdelta{font-size:12px;margin-top:6px;color:var(--dim)}
+.hero{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:26px 28px;box-shadow:var(--shadow)}
+.herolabel{font-size:12px;font-weight:600;color:var(--faint);letter-spacing:.08em;text-transform:uppercase;display:flex;align-items:center;gap:9px}
+.heronum{font-size:66px;font-weight:600;letter-spacing:-.035em;line-height:1;margin-top:12px}
+.heronum.big{font-size:80px}
+.eq{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;margin-top:18px}
+.eqterm{display:flex;flex-direction:column;gap:2px}
+.eqop{font-size:22px;color:var(--faint);font-weight:400}
+.eqv{font-size:17px;font-weight:600}
+.eqk{font-size:10.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.06em}
+.eqchips{display:flex;flex-wrap:wrap;gap:9px;margin-top:18px}
+.eqchip{display:flex;flex-direction:column;gap:2px;padding:9px 13px;border:1px solid var(--border);border-radius:10px;background:var(--surface2);min-width:112px}
+.spark{width:100%;height:56px;display:block}
+.badge{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;border:1px solid transparent;white-space:nowrap}
+.b-good{color:var(--good);background:color-mix(in srgb,var(--good) 13%,transparent);border-color:color-mix(in srgb,var(--good) 30%,transparent)}
+.b-warn{color:var(--warn);background:color-mix(in srgb,var(--warn) 13%,transparent);border-color:color-mix(in srgb,var(--warn) 30%,transparent)}
+.b-serious{color:var(--serious);background:color-mix(in srgb,var(--serious) 13%,transparent);border-color:color-mix(in srgb,var(--serious) 30%,transparent)}
+.b-crit{color:var(--critical);background:color-mix(in srgb,var(--critical) 13%,transparent);border-color:color-mix(in srgb,var(--critical) 30%,transparent)}
+.b-dim{color:var(--dim);background:var(--surface2);border-color:var(--border)}
+.b-accent{color:var(--accent);background:var(--accent-weak);border-color:color-mix(in srgb,var(--accent) 30%,transparent)}
+.donow{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+@media(max-width:900px){.donow{grid-template-columns:1fr}}
+.act{position:relative;padding:18px;border-radius:var(--radius);border:1px solid var(--border);background:var(--surface);cursor:pointer;transition:border-color .18s,transform .18s;text-align:left;display:flex;flex-direction:column;gap:9px;border-left-width:3px}
+.act:hover{transform:translateY(-1px);border-color:var(--border2)}
+.act.serious{border-left-color:var(--serious)}.act.good{border-left-color:var(--good)}.act.warning{border-left-color:var(--warn)}
+.actk{font-size:10.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--faint)}
+.acttitle{font-size:15px;font-weight:600;letter-spacing:-.01em}
+.actdesc{font-size:12.5px;color:var(--dim);line-height:1.5}
+.actcta{font-size:12.5px;font-weight:600;color:var(--accent);margin-top:auto}
+.chart{display:flex;align-items:flex-end;gap:10px;height:210px;padding:6px 2px 0}
+.barcol{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:8px;cursor:pointer;height:100%;border-radius:8px;transition:background .15s}
+.barcol:hover{background:var(--surface2)}
+.barcol.on{background:var(--accent-weak)}
+.barstack{width:60%;max-width:52px;display:flex;flex-direction:column-reverse;border-radius:5px 5px 3px 3px;overflow:hidden;transition:opacity .15s}
+.barseg{width:100%;transition:height .5s cubic-bezier(.4,0,.2,1)}
+.barx{font-size:11px;color:var(--faint)}
+.legend{display:flex;flex-wrap:wrap;gap:16px;margin-top:6px}
+.lg{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--dim)}
+.lgs{width:11px;height:11px;border-radius:3px}
+.seg{display:inline-flex;background:var(--surface2);border:1px solid var(--border);border-radius:9px;padding:3px}
+.seg button{appearance:none;border:0;background:transparent;color:var(--dim);font:inherit;font-weight:600;font-size:12.5px;padding:5px 13px;border-radius:6px;cursor:pointer;transition:color .15s,background .15s}
+.seg button.on{background:var(--surface);color:var(--text);box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.filterbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.select{appearance:none;background:var(--surface);border:1px solid var(--border);color:var(--text);font:inherit;font-size:13px;padding:8px 30px 8px 12px;border-radius:9px;cursor:pointer;background-image:linear-gradient(45deg,transparent 50%,var(--dim) 50%),linear-gradient(135deg,var(--dim) 50%,transparent 50%);background-position:calc(100% - 15px) 55%,calc(100% - 10px) 55%;background-size:5px 5px,5px 5px;background-repeat:no-repeat}
+.search{background:var(--surface);border:1px solid var(--border);color:var(--text);font:inherit;font-size:13px;padding:8px 12px;border-radius:9px;min-width:180px}
+.search::placeholder{color:var(--faint)}
+.chipbtn{appearance:none;background:var(--surface);border:1px solid var(--border);color:var(--dim);font:inherit;font-size:12.5px;font-weight:600;padding:7px 12px;border-radius:9px;cursor:pointer;transition:all .15s}
+.chipbtn:hover{border-color:var(--border2);color:var(--text)}
+.chipbtn.on{background:var(--accent-weak);border-color:color-mix(in srgb,var(--accent) 40%,transparent);color:var(--accent)}
+.dayclr{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--accent);background:var(--accent-weak);border:1px solid color-mix(in srgb,var(--accent) 30%,transparent);padding:6px 10px;border-radius:9px}
+.linkbtn{appearance:none;background:transparent;border:0;color:var(--accent);font:inherit;font-weight:600;font-size:13px;cursor:pointer;padding:0}
+.linkbtn:hover{text-decoration:underline}
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl th{text-align:left;padding:0;border-bottom:1px solid var(--border)}
+.th{appearance:none;width:100%;background:transparent;border:0;color:var(--faint);font:inherit;font-weight:600;font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:11px 14px;cursor:pointer;text-align:left;display:flex;align-items:center;gap:5px;transition:color .15s}
+.th:hover{color:var(--text)}
+.th.rt{justify-content:flex-end}
+.th.act{color:var(--text)}
+.tbl td{padding:12px 14px;border-bottom:1px solid var(--border);vertical-align:middle}
+.tr{cursor:pointer;transition:background .13s}
+.tr:hover{background:var(--surface2)}
+.rt{text-align:right}
+.arrow{font-size:9px;opacity:.8}
+.expand{background:var(--surface2)}
+.expandin{padding:4px 16px 18px;display:flex;flex-direction:column;gap:12px}
+.rec{font-size:13px;line-height:1.55;color:var(--text)}
+.mini{display:flex;gap:22px;flex-wrap:wrap}
+.mini div span{display:block}
+.wf{position:relative;max-height:520px;overflow:auto;border-radius:var(--radius);border:1px solid var(--border)}
+.wfrow{display:grid;grid-template-columns:120px 1fr 118px 84px;gap:14px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border);transition:background .13s}
+.wfrow:hover{background:var(--surface2)}
+.wfrow.flag{background:color-mix(in srgb,var(--serious) 12%,transparent);box-shadow:inset 3px 0 0 var(--serious)}
+.tbar{display:flex;height:16px;border-radius:4px;overflow:hidden;background:var(--surface2)}
+.tbar span{height:100%}
+.countdown{display:flex;flex-direction:column;gap:8px}
+.cdtop{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.cdtime{font-size:22px;font-weight:600;letter-spacing:-.01em}
+.cdbar{height:6px;border-radius:4px;background:var(--surface2);overflow:hidden}
+.cdfill{height:100%;background:var(--good);transition:width 1s linear,background .3s}
+.cdfill.warnc{background:var(--warn)}
+.pinging{color:var(--good);font-weight:700;animation:flash .5s ease-in-out}
+@keyframes flash{0%{opacity:.3}100%{opacity:1}}
+.livecard{border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;background:var(--surface);transition:border-color .18s}
+.livecard.warm{border-left:3px solid var(--good)}
+.livecard.cold{border-left:3px solid var(--dim)}
+.livecard.paused{border-left:3px solid var(--warn)}
+.livecard.abandoned{border-left:3px solid var(--faint);opacity:.62}
+.ticker{max-height:340px;overflow:auto;display:flex;flex-direction:column}
+.ev{display:flex;align-items:center;gap:11px;padding:11px 6px;border-bottom:1px solid var(--border);font-size:13px;animation:evin .4s ease}
+@keyframes evin{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+.evdot{width:8px;height:8px;border-radius:50%;flex:none}
+.evtime{margin-left:auto;font-size:11.5px;color:var(--faint)}
+.budget{display:flex;flex-direction:column;gap:7px}
+.budbar{height:8px;border-radius:5px;background:var(--surface2);overflow:hidden}
+.budfill{height:100%;background:var(--accent);border-radius:5px}
+.toaster{position:fixed;right:22px;bottom:22px;z-index:50;display:flex;flex-direction:column;gap:10px;max-width:320px}
+.toast{background:var(--surface);border:1px solid var(--border2);border-left:3px solid var(--good);border-radius:11px;padding:13px 15px;box-shadow:var(--shadow);font-size:13.5px;font-weight:500;animation:toastin .35s cubic-bezier(.2,.9,.3,1)}
+@keyframes toastin{from{opacity:0;transform:translateX(30px)}to{opacity:1;transform:none}}
+.degraded{border:1px solid color-mix(in srgb,var(--critical) 40%,transparent);background:color-mix(in srgb,var(--critical) 8%,transparent);border-radius:var(--radius);padding:22px 24px}
+.empty{border:1px dashed var(--border2);border-radius:var(--radius);padding:34px;text-align:center;color:var(--dim)}
+.skel{background:linear-gradient(90deg,var(--surface2) 25%,var(--surface3) 50%,var(--surface2) 75%);background-size:200% 100%;animation:shim 1.3s ease-in-out infinite;border-radius:8px}
+@keyframes shim{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.stack{display:flex;flex-direction:column}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
+.sep{height:1px;background:var(--border);border:0;margin:0}
+.hr{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:16px}
+.tag{font-size:11px;color:var(--faint)}
+.attr{display:grid;grid-template-columns:1fr auto auto;gap:8px 18px;align-items:center;padding:11px 0;border-bottom:1px solid var(--border);font-size:13px}
+.mb18{margin-bottom:18px}.mb14{margin-bottom:14px}.mt20{margin-top:20px}.mt14{margin-top:14px}
+</style>
+</helmet>
+<div class="app">
+<header class="hdr">
+<div class="brand">stoke<span class="brandsub">cache keep-alive</span></div>
+<nav class="navtabs" role="tablist" aria-label="Dashboard views"><sc-for list="{{ tabs }}" as="t" hint-placeholder-count="4"><button class="tab {{ t.cls }}" role="tab" aria-selected="{{ t.sel }}" tabindex="{{ t.tabindex }}" data-i="{{ t.i }}" onClick="{{ t.onClick }}" onKeyDown="{{ onTabKey }}">{{ t.label }}</button></sc-for></nav>
+<div class="fx ac gap10" style="display:flex;align-items:center;gap:9px">
+<div class="pill {{ proxyPillCls }}" title="{{ proxyPillTitle }}"><span class="dot"></span>{{ proxyPillText }}</div>
+<div class="chip" aria-live="polite"><span class="livedot"></span>updated {{ agoText }}</div>
+<button class="iconbtn" onClick="{{ toggleTheme }}" aria-label="{{ themeAria }}">{{ themeIcon }}</button>
+</div>
+</header>
+<main>
+<sc-if value="{{ isOverview }}" hint-placeholder-val="{{ true }}">
+<div class="hr"><div><div class="pagetitle">Overview</div><div class="pagesub">How am I doing, and what should I do about it.</div></div><div class="seg" role="group" aria-label="Cockpit layout"><button class="{{ layA }}" onClick="{{ setLayoutA }}">Layout A</button><button class="{{ layB }}" onClick="{{ setLayoutB }}">Layout B</button></div></div>
+<sc-if value="{{ loading }}"><div class="grid cards2 mb14"><div class="hero"><div class="skel" style="width:120px;height:14px"></div><div class="skel mt14" style="width:220px;height:64px"></div><div class="skel mt14" style="width:100%;height:56px"></div></div><div class="grid" style="gap:14px"><div class="card"><div class="skel" style="width:80px;height:12px"></div><div class="skel mt14" style="width:100%;height:40px"></div></div><div class="card"><div class="skel" style="width:80px;height:12px"></div><div class="skel mt14" style="width:100%;height:40px"></div></div></div></div><div class="donow"><div class="act"><div class="skel" style="width:70px;height:11px"></div><div class="skel mt14" style="width:90%;height:16px"></div><div class="skel mt14" style="width:100%;height:34px"></div></div><div class="act"><div class="skel" style="width:70px;height:11px"></div><div class="skel mt14" style="width:90%;height:16px"></div><div class="skel mt14" style="width:100%;height:34px"></div></div><div class="act"><div class="skel" style="width:70px;height:11px"></div><div class="skel mt14" style="width:90%;height:16px"></div><div class="skel mt14" style="width:100%;height:34px"></div></div></div></sc-if>
+<sc-if value="{{ ready }}">
+<sc-if value="{{ layoutA }}"><div class="grid cards2 mb14" style="grid-template-columns:1.35fr 1fr"><div class="hero"><div class="herolabel">Net cost today<span class="badge b-dim">spend + pings − prevented</span></div><div class="heronum num">{{ ov.netDisp }}</div><div class="eq"><div class="eqterm"><span class="eqv num">{{ ov.spend }}</span><span class="eqk">spend</span></div><span class="eqop">+</span><div class="eqterm"><span class="eqv num">{{ ov.ping }}</span><span class="eqk">ping cost</span></div><span class="eqop">−</span><div class="eqterm"><span class="eqv num" style="color:var(--good)">{{ ov.prevented }}</span><span class="eqk">prevented ({{ ov.rebuilds }})</span></div></div><div class="mt20"><div class="klabel">7-day net trend</div><svg class="spark mt14" viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true"><polyline points="{{ ov.sparkArea }}" fill="{{ ov.sparkFill }}" stroke="none"></polyline><polyline points="{{ ov.sparkLine }}" fill="none" stroke="var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linjoin="round" stroke-linecap="round"></polyline></svg></div></div><div class="grid" style="gap:14px"><div class="card"><div class="klabel">Proxy status</div><div class="fx" style="display:flex;align-items:center;gap:10px;margin-top:10px"><span class="badge {{ ov.proxyBadge }}">{{ ov.proxyText }}</span></div><div class="dim" style="font-size:12.5px;margin-top:9px">{{ ov.proxyDetail }}</div></div><div class="card"><div class="klabel">Net saved by keep-alive today</div><div class="kval num" style="color:var(--good)">{{ ov.netSaved }}</div><div class="kdelta">{{ ov.savedDetail }}</div></div></div></div></sc-if>
+<sc-if value="{{ layoutB }}"><div class="hero mb14" style="text-align:center"><div class="herolabel" style="justify-content:center">Net cost today<span class="badge b-dim">spend + pings − prevented</span></div><div class="heronum big num">{{ ov.netDisp }}</div><div class="eqchips" style="justify-content:center"><div class="eqchip"><span class="eqk">spend</span><span class="eqv num">{{ ov.spend }}</span></div><div class="eqchip"><span class="eqk">+ ping cost</span><span class="eqv num">{{ ov.ping }}</span></div><div class="eqchip"><span class="eqk">− prevented ({{ ov.rebuilds }})</span><span class="eqv num" style="color:var(--good)">{{ ov.prevented }}</span></div><div class="eqchip"><span class="eqk">proxy</span><span class="eqv"><span class="badge {{ ov.proxyBadge }}">{{ ov.proxyText }}</span></span></div></div><svg class="spark mt20" viewBox="0 0 100 26" preserveAspectRatio="none" aria-hidden="true" style="height:66px"><polyline points="{{ ov.sparkArea26 }}" fill="{{ ov.sparkFill }}" stroke="none"></polyline><polyline points="{{ ov.sparkLine26 }}" fill="none" stroke="var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke"></polyline></svg></div></sc-if>
+<div class="klabel mb14">Do this now</div>
+<div class="donow mb18"><sc-for list="{{ doNow }}" as="a" hint-placeholder-count="3"><button class="act {{ a.tone }}" onClick="{{ a.onClick }}"><span class="actk">{{ a.kicker }}</span><span class="acttitle">{{ a.title }}</span><span class="actdesc">{{ a.desc }}</span><span class="actcta">{{ a.cta }}</span></button></sc-for></div>
+<div class="card pad0 mb14"><div style="padding:18px 20px 4px"><div class="hr" style="margin:0"><div><div class="pagetitle">Spend by day</div><div class="pagesub">Stacked by token type · click a day to see its sessions</div></div><div class="num" style="font-size:13px;color:var(--dim)">7-day total <span style="color:var(--text);font-weight:600">{{ ov.weekTotal }}</span></div></div></div><div style="padding:0 18px 8px"><div class="chart"><sc-for list="{{ spendBars }}" as="b" hint-placeholder-count="7"><button class="barcol {{ b.on }}" onClick="{{ b.onClick }}" aria-label="{{ b.aria }}" title="{{ b.aria }}"><div class="barstack" style="height:{{ b.hPct }}"><sc-for list="{{ b.segs }}" as="s" hint-placeholder-count="4"><span class="barseg" style="{{ s.style }}"></span></sc-for></div><span class="barx num">{{ b.label }}</span></button></sc-for></div><div class="legend"><div class="lg"><span class="lgs" style="background:var(--s-output)"></span>output</div><div class="lg"><span class="lgs" style="background:var(--s-input)"></span>fresh input</div><div class="lg"><span class="lgs" style="background:var(--s-cwrite)"></span>cache write</div><div class="lg"><span class="lgs" style="background:var(--s-cread)"></span>cache read</div></div></div></div>
+<div class="grid cards4"><sc-for list="{{ statCards }}" as="c" hint-placeholder-count="4"><div class="card"><div class="klabel">{{ c.label }}</div><div class="kval num">{{ c.value }}</div><div class="kdelta">{{ c.sub }}</div></div></sc-for></div>
+</sc-if>
+</sc-if>
+
+<sc-if value="{{ isSessions }}">
+<sc-if value="{{ sessDetail }}">
+<div class="hr"><div><button class="linkbtn mb14" onClick="{{ backToSessions }}">← All sessions</button><div class="pagetitle mono">{{ sel.short }}</div><div class="pagesub">{{ sel.project }} · {{ sel.model }} · {{ sel.turns }} turns · <span class="num">{{ sel.cost }}</span> · TTL {{ sel.ttl }}</div></div><sc-if value="{{ sel.hasFlag }}"><span class="badge b-serious">flagged turn highlighted</span></sc-if></div>
+<div class="card pad0"><div class="wfrow" style="background:var(--surface2);border-bottom:1px solid var(--border)"><div class="klabel">Turn / time</div><div class="klabel">Token mix (in · out · cache write · cache read)</div><div class="klabel rt">Pings</div><div class="klabel rt">Cost</div></div><div class="wf" ref="{{ wfRef }}"><sc-for list="{{ turns }}" as="t" hint-placeholder-count="8"><div class="wfrow {{ t.flag }}" ref="{{ t.ref }}"><div><div class="num" style="font-weight:600">#{{ t.n }}</div><div class="faint num" style="font-size:11px">{{ t.time }}</div></div><div><div class="tbar" title="{{ t.mixTitle }}"><sc-for list="{{ t.segs }}" as="s" hint-placeholder-count="4"><span style="{{ s.style }}"></span></sc-for></div><div class="faint num" style="font-size:11px;margin-top:5px">{{ t.mixText }}</div></div><div class="rt num">{{ t.pings }}</div><div class="rt num" style="font-weight:600">{{ t.cost }}</div></div></sc-for></div></div>
+</sc-if>
+<sc-if value="{{ sessList }}">
+<div class="hr"><div><div class="pagetitle">Sessions</div><div class="pagesub">{{ sessCount }}</div></div></div>
+<div class="filterbar mb14"><select class="select" aria-label="Filter by project" value="{{ f.project }}" onChange="{{ onProject }}"><sc-for list="{{ projectOpts }}" as="o" hint-placeholder-count="4"><option value="{{ o.v }}">{{ o.l }}</option></sc-for></select><select class="select" aria-label="Filter by model" value="{{ f.model }}" onChange="{{ onModel }}"><sc-for list="{{ modelOpts }}" as="o" hint-placeholder-count="3"><option value="{{ o.v }}">{{ o.l }}</option></sc-for></select><sc-for list="{{ rangeChips }}" as="r" hint-placeholder-count="3"><button class="chipbtn {{ r.on }}" onClick="{{ r.onClick }}">{{ r.label }}</button></sc-for><input class="search" type="search" placeholder="Search id or project…" aria-label="Search sessions" value="{{ f.query }}" onInput="{{ onQuery }}"><sc-if value="{{ f.dayActive }}"><span class="dayclr">day: {{ f.dayLabel }}<button class="linkbtn" onClick="{{ clearDay }}" aria-label="Clear day filter">✕</button></span></sc-if></div>
+<sc-if value="{{ hasSessions }}"><div class="card pad0"><table class="tbl"><thead><tr><sc-for list="{{ sessCols }}" as="c" hint-placeholder-count="6"><th><button class="th {{ c.cls }} {{ c.actcls }}" onClick="{{ c.onClick }}" aria-sort="{{ c.aria }}">{{ c.label }}<span class="arrow">{{ c.arrow }}</span></button></th></sc-for></tr></thead><tbody><sc-for list="{{ sessRows }}" as="r" hint-placeholder-count="8"><tr class="tr" tabindex="0" onClick="{{ r.onClick }}" onKeyDown="{{ r.onKey }}"><td><div class="mono" style="font-size:12px;color:var(--dim)">{{ r.short }}</div></td><td>{{ r.project }}</td><td class="mono" style="font-size:12px">{{ r.model }}</td><td class="num faint">{{ r.started }}</td><td class="rt num">{{ r.turns }}</td><td class="rt num" style="font-weight:600">{{ r.cost }}</td><td class="rt"><span class="badge b-dim">{{ r.ttl }}</span></td></tr></sc-for></tbody></table></div></sc-if>
+<sc-if value="{{ noSessions }}"><div class="empty"><div style="font-weight:600;color:var(--text)">No sessions match these filters</div><div style="margin-top:6px">Try widening the date range or clearing filters.</div></div></sc-if>
+</sc-if>
+</sc-if>
+
+<sc-if value="{{ isProxy }}">
+<div class="hr"><div><div class="pagetitle">Proxy</div><div class="pagesub">Cache keep-alive engine · live sessions and event stream</div></div><button class="chipbtn {{ downToggleCls }}" onClick="{{ toggleProxyDown }}">{{ downToggleLabel }}</button></div>
+<div class="grid cards4 mb14"><div class="card"><div class="klabel">Status</div><div class="fx" style="display:flex;align-items:center;gap:9px;margin-top:10px"><span class="badge {{ px.statusBadge }}">{{ px.statusText }}</span></div><div class="kdelta">{{ px.uptime }}</div></div><div class="card"><div class="klabel">Plan</div><div class="kval" style="font-size:20px;text-transform:capitalize">{{ px.plan }}</div><div class="kdelta">TTL {{ px.ttlText }}</div></div><div class="card"><div class="klabel">Daily ping budget</div><div class="kval num" style="font-size:20px">{{ px.dailyText }}</div><div class="budget mt14"><div class="budbar"><div class="budfill" style="{{ px.dailyBarStyle }}"></div></div></div></div><div class="card"><div class="klabel">Monthly ping budget</div><div class="kval num" style="font-size:20px">{{ px.monthlyText }}</div><div class="budget mt14"><div class="budbar"><div class="budfill" style="{{ px.monthlyBarStyle }}"></div></div></div></div></div>
+<sc-if value="{{ proxyIsDown }}"><div class="degraded"><div class="fx" style="display:flex;align-items:center;gap:10px"><span class="badge b-crit">proxy down</span><span style="font-weight:600">Keep-alive inactive</span></div><div class="dim" style="margin-top:10px;font-size:13.5px;line-height:1.6;max-width:640px">The keep-alive proxy is unreachable, so no cache pings are firing and rebuilds are no longer being prevented. <strong style="color:var(--text)">Spend tracking still works</strong> — Overview, Sessions and Waste remain accurate. Restart the proxy to resume keep-alive.</div></div></sc-if>
+<sc-if value="{{ proxyIsUp }}">
+<div class="grid cards4 mb14"><div class="card"><div class="klabel">Net saved today</div><div class="kval num" style="color:var(--good)">{{ px.netSaved }}</div><div class="kdelta">{{ px.saved }} prevented − {{ px.pingSpend }} pings</div></div><div class="card"><div class="klabel">Rebuilds avoided</div><div class="kval num">{{ px.rebuilds }}</div><div class="kdelta">pings: {{ px.pingsFired }} fired · {{ px.pingsSkipped }} skipped</div></div><div class="card"><div class="klabel">Resumes today</div><div class="kval num">{{ px.resumesTotal }}</div><div class="kdelta">{{ px.resumeDetail }}</div></div><div class="card"><div class="klabel">Cache hit rate</div><div class="kval num" style="color:var(--good)">{{ px.hitRate }}</div><div class="kdelta">{{ px.cacheRead }} read all-time</div></div></div>
+<div class="grid cards2" style="grid-template-columns:1.25fr 1fr;align-items:start"><div><div class="klabel mb14">Live sessions — countdown to next cache ping</div><div class="grid" style="gap:12px"><sc-for list="{{ liveCards }}" as="l" hint-placeholder-count="3"><div class="livecard {{ l.cacheStatus }}"><div class="fx" style="display:flex;align-items:center;justify-content:space-between;gap:10px"><div><div style="font-weight:600" class="mono">{{ l.project }}</div><div class="faint" style="font-size:11.5px;margin-top:2px">{{ l.model }} · idle {{ l.idle }} · {{ l.pings }} pings/5h</div></div><span class="badge {{ l.statusBadge }}">{{ l.cacheStatus }}</span></div><div class="countdown mt14"><div class="cdtop"><span class="dim" style="font-size:12px">next ping in</span><span class="cdtime num {{ l.pingingCls }}">{{ l.cdText }}</span></div><div class="cdbar"><div class="cdfill {{ l.warnCls }}" style="{{ l.barStyle }}"></div></div></div><div class="faint" style="font-size:11.5px;margin-top:10px">saved all-time <span class="num" style="color:var(--good)">{{ l.saved }}</span> · ping cost <span class="num">{{ l.pingCost }}</span></div></div></sc-for></div></div><div><div class="klabel mb14">Live events</div><div class="card pad0"><div class="ticker"><sc-for list="{{ events }}" as="e" hint-placeholder-count="7"><div class="ev"><span class="evdot" style="{{ e.dotStyle }}"></span><div><div>{{ e.text }}</div><div class="faint mono" style="font-size:11px">{{ e.project }}</div></div><span class="evtime num">{{ e.time }}</span></div></sc-for></div></div><div class="klabel mb14 mt20">TTL advice by project</div><div class="card pad0"><sc-for list="{{ ttlAdvice }}" as="a" hint-placeholder-count="4"><div class="attr" style="padding:12px 16px;grid-template-columns:1fr auto"><div><div class="mono" style="font-weight:600">{{ a.project }}</div><div class="faint" style="font-size:11.5px;margin-top:3px">{{ a.reasoning }}</div></div><div style="text-align:right"><span class="badge {{ a.badge }}">{{ a.verdict }}</span><div class="num" style="font-size:12px;margin-top:5px;color:var(--dim)">{{ a.delta }}</div></div></div></sc-for></div></div></div>
+</sc-if>
+</sc-if>
+
+<sc-if value="{{ isWaste }}">
+<div class="hr"><div><div class="pagetitle">Waste</div><div class="pagesub">Where money leaked, and what the optimizer did about it.</div></div><div class="seg" role="group" aria-label="Waste view"><button class="{{ wFindingsCls }}" onClick="{{ showFindings }}">Findings</button><button class="{{ wLogCls }}" onClick="{{ showLog }}">Optimizer log</button></div></div>
+<sc-if value="{{ wasteFindings }}">
+<div class="grid cards3 mb14"><div class="card"><div class="klabel">Total identified waste</div><div class="kval num" style="color:var(--serious)">{{ waste.total }}</div><div class="kdelta">{{ waste.count }} findings</div></div><div class="card"><div class="klabel">Est. saved by optimizer</div><div class="kval num" style="color:var(--good)">{{ waste.attrSaved }}</div><div class="kdelta">across {{ waste.leverCount }} active levers</div></div><div class="card"><div class="klabel">Top waste type</div><div class="kval" style="font-size:20px">{{ waste.topType }}</div><div class="kdelta">{{ waste.topTypeAmt }}</div></div></div>
+<div class="filterbar mb14"><sc-for list="{{ wasteTypeChips }}" as="c" hint-placeholder-count="4"><button class="chipbtn {{ c.on }}" onClick="{{ c.onClick }}">{{ c.label }}</button></sc-for></div>
+<div class="card pad0 mb18"><table class="tbl"><thead><tr><th><span class="th">Type</span></th><th><span class="th">Project</span></th><th><span class="th">When</span></th><th><span class="th rt" style="justify-content:flex-end">Wasted</span></th><th><span class="th"></span></th></tr></thead><tbody><sc-for list="{{ wasteRows }}" as="w" hint-placeholder-count="5"><tr class="tr" tabindex="0" onClick="{{ w.toggle }}" onKeyDown="{{ w.onKey }}"><td><span class="badge {{ w.badge }}">{{ w.typeLabel }}</span></td><td class="mono" style="font-size:12px">{{ w.project }}</td><td class="num faint">{{ w.when }}</td><td class="rt num" style="font-weight:600;color:var(--serious)">{{ w.wasted }}</td><td class="rt faint">{{ w.caret }}</td></tr><sc-if value="{{ w.open }}"><tr class="expand"><td colspan="5"><div class="expandin"><div class="rec">{{ w.recommendation }}</div><sc-if value="{{ w.proxyNote }}"><div class="badge b-warn" style="align-self:flex-start">proxy was up but couldn't prevent it — check ping budget</div></sc-if><div class="fx" style="display:flex;gap:10px;flex-wrap:wrap"><button class="chipbtn" onClick="{{ w.openSession }}">Open session waterfall →</button></div></div></td></tr></sc-if></sc-for></tbody></table></div>
+<div class="klabel mb14">Optimizer attribution — impact per lever</div><div class="card"><div class="attr" style="border-bottom:1px solid var(--border);padding-bottom:9px"><span class="klabel">Lever</span><span class="klabel rt">Events/session</span><span class="klabel rt">Est. saved</span></div><sc-for list="{{ attribution }}" as="a" hint-placeholder-count="3"><div class="attr"><span class="mono" style="font-weight:600">{{ a.lever }}</span><span class="rt num"><span class="faint">{{ a.before }}</span> → <span style="color:var(--good)">{{ a.after }}</span></span><span class="rt num" style="font-weight:600;color:var(--good)">{{ a.saved }}</span></div></sc-for></div>
+</sc-if>
+<sc-if value="{{ wasteLog }}">
+<div class="pagesub mb14">Live interventions the optimizer applied — soft warnings, hard gates and downshifts.</div>
+<div class="card pad0"><sc-for list="{{ interventions }}" as="i" hint-placeholder-count="5"><div class="attr" style="grid-template-columns:auto 1fr auto;padding:14px 16px"><span class="badge {{ i.badge }}">{{ i.mode }}</span><div><div style="font-weight:600">{{ i.message }}</div><div class="faint mono" style="font-size:11.5px;margin-top:3px">{{ i.lever }} · {{ i.project }}</div></div><span class="num faint" style="font-size:12px">{{ i.time }}</span></div></sc-for></div>
+</sc-if>
+</sc-if>
+</main>
+</div>
+<div class="toaster" aria-live="polite" aria-atomic="false"><sc-for list="{{ toasts }}" as="t" hint-placeholder-count="0"><div class="toast">{{ t.text }}</div></sc-for></div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:&quot;100%&quot;,&quot;height&quot;:880},&quot;defaultLayout&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;A&quot;,&quot;B&quot;],&quot;default&quot;:&quot;A&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Demo&quot;},&quot;startProxyDown&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Demo&quot;},&quot;pollSeconds&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:4,&quot;min&quot;:2,&quot;max&quot;:15,&quot;unit&quot;:&quot;s&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Demo&quot;}}">
+class Component extends DCLogic {
+  data = {
+    overview:{today:76.91,week:1055.33,month:3635.71,effectiveDollarsPerMTok:1.02,cacheSavedUsd:2210.4},
+    cache:{totalRead:9.1e9,totalWrite5m:1.2e8,totalWrite1h:3.4e8,freshInput:1.8e7,hitRate:0.998},
+    spend:[
+      {day:"2026-07-08",output:16.2,input:2.4,cacheWrite:14.1,cacheRead:28.0},
+      {day:"2026-07-09",output:18.0,input:2.7,cacheWrite:15.5,cacheRead:30.1},
+      {day:"2026-07-10",output:12.1,input:1.9,cacheWrite:10.2,cacheRead:22.4},
+      {day:"2026-07-11",output:20.3,input:3.0,cacheWrite:17.1,cacheRead:33.0},
+      {day:"2026-07-12",output:8.4,input:1.2,cacheWrite:7.0,cacheRead:15.1},
+      {day:"2026-07-13",output:21.4,input:3.1,cacheWrite:18.2,cacheRead:34.2},
+      {day:"2026-07-14",output:21.4,input:3.1,cacheWrite:18.2,cacheRead:34.21}
+    ],
+    sessions:[
+      {session_id:"9719b830-4a2c-4e11-9f0a-1d",project:"work/my-app",started:"2026-07-14T08:01:22Z",model:"claude-fable-5",turns:142,cost:61.2,ttlMs:3600000},
+      {session_id:"a1b2c3d4-8e7f-4a1b-9c2d-3e",project:"work/api-svc",started:"2026-07-14T09:12:04Z",model:"claude-fable-5",turns:88,cost:22.4,ttlMs:300000},
+      {session_id:"7f3e9a10-2b4c-4d6e-8f0a-1b",project:"work/my-app",started:"2026-07-13T10:20:41Z",model:"claude-fable-5",turns:210,cost:74.0,ttlMs:3600000},
+      {session_id:"5c8d2e77-9f1a-4b3c-8d5e-2a",project:"personal/blog",started:"2026-07-13T14:02:10Z",model:"claude-fable-5-fast",turns:41,cost:6.8,ttlMs:300000},
+      {session_id:"2b6a44f1-7c3d-4e5f-9a0b-4c",project:"work/api-svc",started:"2026-07-12T11:00:55Z",model:"claude-fable-5",turns:67,cost:18.9,ttlMs:300000},
+      {session_id:"e90c1a23-5d6e-4f7a-8b9c-5d",project:"work/data-pipe",started:"2026-07-12T16:40:30Z",model:"claude-fable-5",turns:156,cost:53.1,ttlMs:3600000},
+      {session_id:"4d7b8c90-1a2b-4c3d-9e5f-6e",project:"work/my-app",started:"2026-07-11T09:30:12Z",model:"claude-fable-5",turns:98,cost:31.5,ttlMs:3600000},
+      {session_id:"6a2f0b55-3c4d-4e6f-8a1b-7f",project:"personal/blog",started:"2026-07-11T13:15:48Z",model:"claude-fable-5-fast",turns:29,cost:4.2,ttlMs:300000},
+      {session_id:"1e5d9f22-4b5c-4d7e-9f0a-8a",project:"work/api-svc",started:"2026-07-10T10:05:33Z",model:"claude-fable-5",turns:73,cost:20.1,ttlMs:300000},
+      {session_id:"8c4a3b6e-2d3e-4f5a-8b6c-9b",project:"work/my-app",started:"2026-07-10T15:20:19Z",model:"claude-fable-5",turns:120,cost:44.8,ttlMs:3600000},
+      {session_id:"3f9e7d01-5e6f-4a7b-9c2d-0c",project:"work/data-pipe",started:"2026-07-09T11:45:07Z",model:"claude-fable-5",turns:134,cost:48.6,ttlMs:3600000},
+      {session_id:"b7c6a5d4-6f7a-4b8c-9d3e-1d",project:"work/api-svc",started:"2026-07-08T10:10:44Z",model:"claude-fable-5-fast",turns:52,cost:11.3,ttlMs:300000}
+    ],
+    waste:{findings:[
+      {type:"cache_expiry",session_id:"9719b830-4a2c-4e11-9f0a-1d",project:"work/my-app",ts:"2026-07-13T12:10:00Z",wastedUsd:0.62,recommendation:"Gap of 19m exceeded the 5m cache TTL — the cache expired before your next turn, forcing a full rebuild. Keep the session warm or switch this project to a 1h TTL.",detail:{gapMinutes:19,ttlMinutes:5,proxyWasUp:false}},
+      {type:"session_bloat",session_id:"7f3e9a10-2b4c-4d6e-8f0a-1b",project:"work/my-app",ts:"2026-07-13T15:00:00Z",wastedUsd:1.10,recommendation:"Context grew to 310k tokens; large cache writes dominated cost this session. Consider /compact or splitting the task into fresh sessions.",detail:{contextTokens:310000}},
+      {type:"cache_expiry",session_id:"e90c1a23-5d6e-4f7a-8b9c-5d",project:"work/data-pipe",ts:"2026-07-12T17:30:00Z",wastedUsd:0.41,recommendation:"Gap of 8m exceeded the 5m TTL while the proxy was up — the ping budget was exhausted so keep-alive couldn't fire.",detail:{gapMinutes:8,ttlMinutes:5,proxyWasUp:true}},
+      {type:"output_verbosity",session_id:"a1b2c3d4-8e7f-4a1b-9c2d-3e",project:"work/api-svc",ts:"2026-07-14T09:40:00Z",wastedUsd:0.28,recommendation:"Averaging 900 output tokens/turn on a fast model — tighten prompts or lower verbosity to trim output spend.",detail:{avgOut:900}},
+      {type:"cache_invalidation",session_id:"2b6a44f1-7c3d-4e5f-9a0b-4c",project:"work/api-svc",ts:"2026-07-12T11:20:00Z",wastedUsd:0.35,recommendation:"Editing a file early in the turn invalidated a 4,100-token cache write that had to be re-established.",detail:{tokens:4100}},
+      {type:"model_mismatch",session_id:"5c8d2e77-9f1a-4b3c-8d5e-2a",project:"personal/blog",ts:"2026-07-13T14:20:00Z",wastedUsd:0.19,recommendation:"Simple edits ran on the full model; a smaller model would suffice for this project's typical turns.",detail:{}}
+    ],attribution:[
+      {lever:"cache_expiry_warning",eventsPerSessionBefore:0.4,eventsPerSessionAfter:0.1,estSavedUsd:3.2},
+      {lever:"bloat_hard_gate",eventsPerSessionBefore:0.9,eventsPerSessionAfter:0.2,estSavedUsd:5.6},
+      {lever:"ttl_auto_switch",eventsPerSessionBefore:0.6,eventsPerSessionAfter:0.15,estSavedUsd:2.1}
+    ]},
+    ttl:[
+      {project:"work/api-svc",verdict:"switch-1h",monthlyDeltaUsd:14.2,reasoning:"Sessions idle 8–15m between turns; a 1h TTL avoids repeated 5m expiries."},
+      {project:"work/my-app",verdict:"keep",monthlyDeltaUsd:0,reasoning:"Already on 1h TTL; cadence is optimal."},
+      {project:"personal/blog",verdict:"switch-5m",monthlyDeltaUsd:-2.3,reasoning:"Short bursty sessions — a 5m TTL is cheaper than holding 1h warm."},
+      {project:"work/data-pipe",verdict:"keep",monthlyDeltaUsd:0,reasoning:"Long continuous runs; 1h TTL fits."}
+    ],
+    interventions:[
+      {ts:"2026-07-14T08:30:00Z",session_id:"9719b830-4a2c-4e11-9f0a-1d",lever:"bloat_hard_gate",mode:"enforce",message:"blocked prompt at 310k context",project:"work/my-app"},
+      {ts:"2026-07-14T07:50:00Z",session_id:"a1b2c3d4-8e7f-4a1b-9c2d-3e",lever:"verbosity_nudge",mode:"warn",message:"suggested lower verbosity (avg 900 out tok)",project:"work/api-svc"},
+      {ts:"2026-07-13T15:05:00Z",session_id:"7f3e9a10-2b4c-4d6e-8f0a-1b",lever:"bloat_soft_warn",mode:"warn",message:"context approaching cap (280k)",project:"work/my-app"},
+      {ts:"2026-07-13T14:22:00Z",session_id:"5c8d2e77-9f1a-4b3c-8d5e-2a",lever:"model_downshift",mode:"suggest",message:"recommended smaller model for simple edits",project:"personal/blog"},
+      {ts:"2026-07-12T11:22:00Z",session_id:"2b6a44f1-7c3d-4e5f-9a0b-4c",lever:"cache_invalidation_warn",mode:"warn",message:"early file edit invalidated 4.1k cache write",project:"work/api-svc"}
+    ]
+  };
+
+  state = {
+    tab:"overview", selSession:null, scrollTurn:null,
+    theme:null, loading:true,
+    now:Date.now(), lastPollTs:Date.now(),
+    overviewLayout:(this.props&&this.props.defaultLayout)||"A",
+    proxyDown:!!(this.props&&this.props.startProxyDown),
+    wasteView:"findings", wasteType:"all", openWaste:null,
+    sessSort:{key:"cost",dir:"desc"}, sessProject:"all", sessModel:"all", sessRange:"7d", sessDay:null, sessQuery:"",
+    toasts:[],
+    net:{spendUsd:76.91,pingSpendUsd:2.06,preventedUsd:4.67,rebuildsAvoided:7,netCostUsd:74.31},
+    dispNet:74.31, dispTodaySpend:76.91, dispCacheSaved:2210.4,
+    proxy:{plan:"subscription",uptimeSeconds:222720,budget:{dailyCapUsd:20,monthlyCapUsd:300,spentToday:2.06,spentMonth:41.3},today:{savedUsd:4.67,rebuildsAvoided:7,pingSpendUsd:2.06,netSavedUsd:2.60,pingsFired:24,pingsSkipped:3,resumes:{survived:6,partial:1,rebuilt:0}}},
+    live:[
+      {key:"abc123",projectPath:"work/my-app",model:"claude-fable-5",cacheStatus:"warm",detectedTtlSeconds:3600,idleSec:3120,pingCount5h:4,pingCostUsd5h:0.34,savedUsdAllTime:12.8,flash:0},
+      {key:"def456",projectPath:"work/api-svc",model:"claude-fable-5",cacheStatus:"warm",detectedTtlSeconds:300,idleSec:255,pingCount5h:11,pingCostUsd5h:0.62,savedUsdAllTime:6.4,flash:0},
+      {key:"ghi789",projectPath:"personal/blog",model:"claude-fable-5-fast",cacheStatus:"cold",detectedTtlSeconds:300,idleSec:180,pingCount5h:2,pingCostUsd5h:0.10,savedUsdAllTime:1.2,flash:0},
+      {key:"jkl012",projectPath:"work/data-pipe",model:"claude-fable-5",cacheStatus:"abandoned",detectedTtlSeconds:3600,idleSec:5400,pingCount5h:0,pingCostUsd5h:0,savedUsdAllTime:3.1,flash:0}
+    ],
+    events:[
+      {id:1,kind:"prevented_rebuild",text:"prevented rebuild — saved $0.58",project:"work/my-app",ts:Date.now()-14000},
+      {id:2,kind:"ping_fired",text:"ping fired — cache kept warm",project:"work/api-svc",ts:Date.now()-48000},
+      {id:3,kind:"session_resumed",text:"session resumed — cache survived",project:"work/my-app",ts:Date.now()-96000},
+      {id:4,kind:"real_request",text:"real request forwarded",project:"work/api-svc",ts:Date.now()-140000},
+      {id:5,kind:"ping_fired",text:"ping fired — cache kept warm",project:"work/data-pipe",ts:Date.now()-190000},
+      {id:6,kind:"prevented_rebuild",text:"prevented rebuild — saved $0.71",project:"work/data-pipe",ts:Date.now()-260000},
+      {id:7,kind:"ping_fired",text:"ping fired — cache kept warm",project:"work/my-app",ts:Date.now()-330000},
+      {id:8,kind:"real_request",text:"real request forwarded",project:"personal/blog",ts:Date.now()-410000}
+    ]
+  };
+
+  componentDidMount(){
+    let theme=null; try{theme=localStorage.getItem("stoke-theme");}catch(e){}
+    if(!theme) theme=(window.matchMedia&&window.matchMedia("(prefers-color-scheme: light)").matches)?"light":"dark";
+    document.documentElement.setAttribute("data-theme",theme);
+    this.setState({theme});
+    this.applyHash();
+    window.addEventListener("hashchange",this.applyHash);
+    this._load=setTimeout(()=>this.setState({loading:false}),900);
+    this._sec=setInterval(this.tickSecond,1000);
+    const ps=((this.props&&this.props.pollSeconds)||4)*1000;
+    this._poll=setInterval(this.tickPoll,ps);
+    this._eid=100;
+  }
+  componentWillUnmount(){clearInterval(this._sec);clearInterval(this._poll);clearTimeout(this._load);window.removeEventListener("hashchange",this.applyHash);}
+  componentDidUpdate(){}
+  scheduleScrollFlag=()=>{if(this._scrollIv)clearInterval(this._scrollIv);let n=0;this._scrollIv=setInterval(()=>{const wf=document.querySelector(".wf"),flag=document.querySelector(".wfrow.flag");if(wf&&flag){try{const wr=wf.getBoundingClientRect(),fr=flag.getBoundingClientRect();wf.scrollTop=Math.max(0,wf.scrollTop+(fr.top-wr.top)-90);}catch(e){}clearInterval(this._scrollIv);}if(++n>20)clearInterval(this._scrollIv);},60);};
+
+  // routing
+  parseHash=()=>{const h=(location.hash||"").replace(/^#\/?/,"");const [p,qs]=h.split("?");const parts=p.split("/").filter(Boolean);const q={};new URLSearchParams(qs||"").forEach((v,k)=>q[k]=v);return{parts,q};};
+  applyHash=()=>{const{parts,q}=this.parseHash();const tab=parts[0]||"overview";const patch={tab};
+    if(tab==="sessions"){patch.selSession=parts[1]||null;patch.sessProject=q.project||"all";patch.sessModel=q.model||"all";patch.sessDay=q.day||null;if(!parts[1])this._scrolled=false;}
+    if(tab==="waste"){patch.wasteView=parts[1]==="log"?"log":"findings";}
+    this.setState(patch);};
+  go=(h)=>{location.hash=h;};
+  setTab=(t)=>()=>this.go(t);
+  onTabKey=(e)=>{const ks=["ArrowLeft","ArrowRight","Home","End"];if(!ks.includes(e.key))return;e.preventDefault();const btns=[...e.currentTarget.parentElement.querySelectorAll(".tab")];let i=+e.currentTarget.dataset.i;if(e.key==="ArrowLeft")i=(i-1+btns.length)%btns.length;if(e.key==="ArrowRight")i=(i+1)%btns.length;if(e.key==="Home")i=0;if(e.key==="End")i=btns.length-1;btns[i].focus();btns[i].click();};
+  sessQS=()=>{const p={};if(this.state.sessProject!=="all")p.project=this.state.sessProject;if(this.state.sessModel!=="all")p.model=this.state.sessModel;if(this.state.sessDay)p.day=this.state.sessDay;const s=new URLSearchParams(p).toString();return s;};
+  setSessQ=(k,v)=>{const cur=this.parseHash().q;if(!v||v==="all")delete cur[k];else cur[k]=v;const s=new URLSearchParams(cur).toString();this.go("sessions"+(s?"?"+s:""));};
+  onProject=(e)=>this.setSessQ("project",e.target.value);
+  onModel=(e)=>this.setSessQ("model",e.target.value);
+  onQuery=(e)=>this.setState({sessQuery:e.target.value});
+  clearDay=()=>this.setSessQ("day",null);
+  setRange=(r)=>()=>this.setState({sessRange:r});
+  openSession=(id,turn)=>{if(turn!=null){this.setState({scrollTurn:turn});this.scheduleScrollFlag();}this.go("sessions/"+id);};
+  backToSessions=()=>{this._needScroll=false;this.setState({scrollTurn:null});const s=this.sessQS();this.go("sessions"+(s?"?"+s:""));};
+  sortBy=(k)=>()=>this.setState(s=>({sessSort:{key:k,dir:s.sessSort.key===k&&s.sessSort.dir==="desc"?"asc":"desc"}}));
+  rowKey=(fn)=>(e)=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();fn();}};
+  setLayoutA=()=>this.setState({overviewLayout:"A"});
+  setLayoutB=()=>this.setState({overviewLayout:"B"});
+  toggleTheme=()=>{const t=this.state.theme==="light"?"dark":"light";try{localStorage.setItem("stoke-theme",t);}catch(e){}document.documentElement.setAttribute("data-theme",t);this.setState({theme:t});};
+  toggleProxyDown=()=>this.setState(s=>({proxyDown:!s.proxyDown}));
+  showFindings=()=>this.go("waste");
+  showLog=()=>this.go("waste/log");
+  setWasteType=(t)=>()=>this.setState({wasteType:t});
+  toggleWaste=(id)=>()=>this.setState(s=>({openWaste:s.openWaste===id?null:id}));
+  openWasteFinding=(f)=>this.openSession(f.session_id,f.type==="session_bloat"?7:4);
+  dismissToast=(id)=>this.setState(s=>({toasts:s.toasts.filter(t=>t.id!==id)}));
+  wfRef=(el)=>{if(el)this._wfEl=el;};
+
+  tween=(key,from,to,dur)=>{dur=dur||700;this._raf=this._raf||{};if(this._raf[key])cancelAnimationFrame(this._raf[key]);const start=performance.now();const step=(t)=>{const p=Math.min(1,(t-start)/dur);const e=1-Math.pow(1-p,3);this.setState({[key]:from+(to-from)*e});if(p<1)this._raf[key]=requestAnimationFrame(step);};this._raf[key]=requestAnimationFrame(step);};
+
+  tickSecond=()=>{
+    const s=this.state;
+    if(s.loading){this.setState({now:Date.now()});return;}
+    let events=s.events;
+    const live=s.live.map(ls=>{
+      if(s.proxyDown||ls.cacheStatus==="abandoned"||ls.cacheStatus==="paused")return{...ls,flash:Math.max(0,(ls.flash||0)-1)};
+      let idle=ls.idleSec+1,flash=Math.max(0,(ls.flash||0)-1);
+      const cd=(ls.detectedTtlSeconds-30)-idle;
+      let saved=ls.savedUsdAllTime,pc=ls.pingCount5h,pcost=ls.pingCostUsd5h;
+      if(cd<=0){idle=0;flash=3;pc+=1;pcost=+(pcost+0.08).toFixed(2);saved=+(saved+0.6).toFixed(1);events=[{id:this._eid++,kind:"ping_fired",text:"ping fired — cache kept warm",project:ls.projectPath,ts:Date.now()},...events].slice(0,40);}
+      return{...ls,idleSec:idle,flash,savedUsdAllTime:saved,pingCount5h:pc,pingCostUsd5h:pcost};
+    });
+    this.setState({now:Date.now(),live,events});
+  };
+  tickPoll=()=>{
+    const s=this.state;if(s.loading)return;
+    const inc=+(Math.random()*0.32+0.04).toFixed(2);
+    const net={...s.net};net.spendUsd=+(net.spendUsd+inc).toFixed(2);
+    let toasts=s.toasts,events=s.events;
+    const proxy={...s.proxy,today:{...s.proxy.today}};
+    if(!s.proxyDown&&Math.random()<0.5){
+      const saved=+(Math.random()*0.6+0.15).toFixed(2);
+      net.preventedUsd=+(net.preventedUsd+saved).toFixed(2);net.rebuildsAvoided+=1;
+      proxy.today.savedUsd=+(proxy.today.savedUsd+saved).toFixed(2);proxy.today.rebuildsAvoided+=1;proxy.today.netSavedUsd=+(proxy.today.savedUsd-proxy.today.pingSpendUsd).toFixed(2);
+      const t={id:this._eid++,text:"🔥 kept cache warm — saved $"+saved.toFixed(2)};toasts=[...toasts,t];setTimeout(()=>this.dismissToast(t.id),6000);
+      events=[{id:this._eid++,kind:"prevented_rebuild",text:"prevented rebuild — saved $"+saved.toFixed(2),project:"work/my-app",ts:Date.now()},...events].slice(0,40);
+    } else if(!s.proxyDown&&Math.random()<0.6){
+      const k=Math.random()<0.5?["real_request","real request forwarded","work/api-svc"]:["session_resumed","session resumed — cache survived","work/my-app"];
+      events=[{id:this._eid++,kind:k[0],text:k[1],project:k[2],ts:Date.now()},...events].slice(0,40);
+    }
+    net.netCostUsd=+(net.spendUsd+net.pingSpendUsd-net.preventedUsd).toFixed(2);
+    this.setState({net,toasts,events,proxy,lastPollTs:Date.now()});
+    this.tween("dispNet",s.dispNet,net.netCostUsd);
+    this.tween("dispTodaySpend",s.dispTodaySpend,net.spendUsd);
+  };
+
+  // formatters
+  usd=(n)=>"$"+Number(n||0).toFixed(2);
+  pct=(n)=>(n*100).toFixed(1)+"%";
+  tok=(n)=>{n=Number(n);if(n>=1e9)return (n/1e9).toFixed(1)+"B";if(n>=1e6)return (n/1e6).toFixed(1)+"M";if(n>=1e3)return (n/1e3).toFixed(1)+"K";return ""+n;};
+  clock=(ts)=>{const d=new Date(ts);return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0")+":"+String(d.getSeconds()).padStart(2,"0");};
+  agoStr=(sec)=>{if(sec<60)return sec+"s ago";const m=Math.floor(sec/60);if(m<60)return m+"m ago";return Math.floor(m/60)+"h ago";};
+  dateShort=(iso)=>{const d=new Date(iso);const mo=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][d.getMonth()];return mo+" "+d.getDate()+", "+String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");};
+  dayLabel=(iso)=>{const d=new Date(iso+"T00:00:00Z");const mo=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][d.getUTCMonth()];return mo+" "+d.getUTCDate();};
+  mmss=(sec)=>{sec=Math.max(0,Math.floor(sec));return Math.floor(sec/60)+":"+String(sec%60).padStart(2,"0");};
+  typeLabel=(t)=>({cache_expiry:"Cache expiry",cache_invalidation:"Cache invalidation",session_bloat:"Session bloat",output_verbosity:"Output verbosity",model_mismatch:"Model mismatch"}[t]||t);
+  typeBadge=(t)=>({cache_expiry:"b-serious",session_bloat:"b-crit",cache_invalidation:"b-warn",output_verbosity:"b-warn",model_mismatch:"b-accent"}[t]||"b-dim");
+  verdictLabel=(v)=>({["switch-1h"]:"Switch to 1h",["switch-5m"]:"Switch to 5m",keep:"Keep current"}[v]||v);
+  evColor=(k)=>({ping_fired:"var(--good)",prevented_rebuild:"var(--good)",session_resumed:"var(--accent)",real_request:"var(--dim)"}[k]||"var(--dim)");
+
+  renderVals(){
+    const s=this.state,d=this.data,U=this.usd;
+    const tabDefs=[["overview","Overview"],["sessions","Sessions"],["proxy","Proxy"],["waste","Waste"]];
+    const tabs=tabDefs.map(([id,label],i)=>({i,label,cls:s.tab===id?"active":"",sel:s.tab===id?"true":"false",tabindex:s.tab===id?"0":"-1",onClick:this.setTab(id)}));
+    const proxyUp=!s.proxyDown;
+    const agoText=this.agoStr(Math.max(0,Math.floor((s.now-s.lastPollTs)/1000)));
+    // overview
+    const net=s.net;
+    const spend=d.spend;
+    const totals=spend.map(x=>x.output+x.input+x.cacheWrite+x.cacheRead);
+    const max=Math.max(...totals);
+    const spendBars=spend.map((x,i)=>{const tot=totals[i];const segDefs=[[x.output,"var(--s-output)"],[x.input,"var(--s-input)"],[x.cacheWrite,"var(--s-cwrite)"],[x.cacheRead,"var(--s-cread)"]];const segs=segDefs.map(([v,c])=>({style:"height:"+(v/tot*100).toFixed(2)+"%;background:"+c}));const dayIso=x.day;return{hPct:(tot/max*100).toFixed(2)+"%",segs,label:this.dayLabel(dayIso).split(" ")[1],aria:this.dayLabel(dayIso)+": "+U(tot),on:s.sessDay===dayIso?"on":"",onClick:()=>this.openSession?this.setSessDayGo(dayIso):null};});
+    // sparkline from last 7 net-ish totals (use totals as proxy trend)
+    const spk=totals;const smin=Math.min(...spk),smax=Math.max(...spk);const nx=(i)=>(i/(spk.length-1)*100);const ny=(v,h)=>h-((v-smin)/((smax-smin)||1))*(h-4)-2;
+    const line=(h)=>spk.map((v,i)=>nx(i).toFixed(1)+","+ny(v,h).toFixed(1)).join(" ");
+    const area=(h)=>"0,"+h+" "+line(h)+" 100,"+h;
+    const ov={
+      netDisp:U(s.dispNet),spend:U(net.spendUsd),ping:U(net.pingSpendUsd),prevented:U(net.preventedUsd),rebuilds:net.rebuildsAvoided,
+      weekTotal:U(totals.reduce((a,b)=>a+b,0)),
+      netSaved:U(s.proxy.today.netSavedUsd),savedDetail:U(s.proxy.today.savedUsd)+" prevented − "+U(s.proxy.today.pingSpendUsd)+" pings",
+      proxyBadge:proxyUp?"b-good":"b-crit",proxyText:proxyUp?"proxy up":"proxy down",
+      proxyDetail:proxyUp?"Keep-alive active · "+s.live.filter(l=>l.cacheStatus==="warm").length+" sessions warm":"Keep-alive inactive — spend tracking still works",
+      sparkLine:line(30),sparkArea:area(30),sparkLine26:line(26),sparkArea26:area(26),sparkFill:"var(--accent-weak)"
+    };
+    const topWaste=[...d.waste.findings].sort((a,b)=>b.wastedUsd-a.wastedUsd)[0];
+    const ttlSwitch=d.ttl.find(t=>t.verdict!=="keep"&&t.monthlyDeltaUsd>0);
+    const bloat=d.waste.findings.find(f=>f.type==="session_bloat");
+    const doNow=[
+      {tone:"serious",kicker:"Top waste",title:U(topWaste.wastedUsd)+" · "+this.typeLabel(topWaste.type),desc:topWaste.recommendation,cta:"View finding →",onClick:()=>this.openWasteFinding(topWaste)},
+      {tone:"good",kicker:"TTL advice",title:"Switch "+ttlSwitch.project+" to 1h cache",desc:"Est. save ~"+U(ttlSwitch.monthlyDeltaUsd)+"/mo. "+ttlSwitch.reasoning,cta:"Review TTL advice →",onClick:()=>this.go("proxy")},
+      {tone:"warning",kicker:"Session bloat",title:bloat.project+" near context cap",desc:bloat.recommendation,cta:"Open session →",onClick:()=>this.openWasteFinding(bloat)}
+    ];
+    const statCards=[
+      {label:"Today spend",value:U(s.dispTodaySpend),sub:"gross, before prevented"},
+      {label:"This week",value:U(d.overview.week),sub:"rolling 7-day"},
+      {label:"Effective $/MTok",value:"$"+d.overview.effectiveDollarsPerMTok.toFixed(2),sub:"blended, all token types"},
+      {label:"Cache saved all-time",value:U(s.dispCacheSaved),sub:this.pct(d.cache.hitRate)+" hit rate"}
+    ];
+    // sessions
+    const nowMs=new Date("2026-07-14T23:59:59Z").getTime();
+    const rangeDays=s.sessRange==="today"?1:s.sessRange==="7d"?7:30;
+    let rows=d.sessions.filter(x=>{
+      if(s.sessProject!=="all"&&x.project!==s.sessProject)return false;
+      if(s.sessModel!=="all"&&x.model!==s.sessModel)return false;
+      if(s.sessDay&&x.started.slice(0,10)!==s.sessDay)return false;
+      const ageDays=(nowMs-new Date(x.started).getTime())/86400000;if(ageDays>rangeDays)return false;
+      if(s.sessQuery){const q=s.sessQuery.toLowerCase();if(!x.session_id.toLowerCase().includes(q)&&!x.project.toLowerCase().includes(q))return false;}
+      return true;
+    });
+    const sk=s.sessSort.key,sd=s.sessSort.dir==="asc"?1:-1;
+    rows=[...rows].sort((a,b)=>{let x=a[sk],y=b[sk];if(sk==="ttl"){x=a.ttlMs;y=b.ttlMs;}if(typeof x==="string")return x.localeCompare(y)*sd;return (x-y)*sd;});
+    const colDefs=[["project","Project",false],["model","Model",false],["started","Started",false],["turns","Turns",true],["cost","Cost",true],["ttl","TTL",true]];
+    const sessCols=colDefs.map(([k,label,rt])=>({label,cls:rt?"rt":"",actcls:sk===k?"act":"",arrow:sk===k?(s.sessSort.dir==="asc"?"▲":"▼"):"",aria:sk===k?(s.sessSort.dir==="asc"?"ascending":"descending"):"none",onClick:this.sortBy(k)}));
+    const sessRows=rows.map(x=>({short:x.session_id.slice(0,8),project:x.project,model:x.model,started:this.dateShort(x.started),turns:x.turns,cost:U(x.cost),ttl:x.ttlMs>=3600000?"1h":"5m",onClick:()=>this.openSession(x.session_id,null),onKey:this.rowKey(()=>this.openSession(x.session_id,null))}));
+    const projectOpts=[{v:"all",l:"All projects"},...[...new Set(d.sessions.map(x=>x.project))].map(p=>({v:p,l:p}))];
+    const modelOpts=[{v:"all",l:"All models"},...[...new Set(d.sessions.map(x=>x.model))].map(m=>({v:m,l:m}))];
+    const rangeChips=[["today","Today"],["7d","7 days"],["30d","30 days"]].map(([v,label])=>({label,on:s.sessRange===v?"on":"",onClick:this.setRange(v)}));
+    // waterfall
+    const sel0=d.sessions.find(x=>x.session_id===s.selSession);
+    let sel=null,turns=[];
+    if(sel0){
+      sel={short:sel0.session_id.slice(0,8),project:sel0.project,model:sel0.model,turns:sel0.turns,cost:U(sel0.cost),ttl:sel0.ttlMs>=3600000?"1h":"5m",hasFlag:s.scrollTurn!=null};
+      const N=12;const base=new Date(sel0.started).getTime();const flag=s.scrollTurn;
+      for(let i=0;i<N;i++){
+        const inTok=800+((i*137)%900),outTok=400+((i*211)%1100),cw=i===flag?5200:((i*97)%600)*10,cr=120000+((i*8887)%260000);
+        const cost=+(inTok*3e-6+outTok*1.5e-5+cw*3.75e-6+cr*3e-7+0.02).toFixed(2);
+        const tot=inTok+outTok+cw+cr;const segDefs=[[inTok,"var(--s-input)"],[outTok,"var(--s-output)"],[cw,"var(--s-cwrite)"],[cr,"var(--s-cread)"]];
+        turns.push({n:i+1,time:this.clock(base+i*95000),segs:segDefs.map(([v,c])=>({style:"width:"+(v/tot*100).toFixed(2)+"%;background:"+c})),mixText:this.tok(inTok)+" in · "+this.tok(outTok)+" out · "+this.tok(cw)+" cw · "+this.tok(cr)+" cr",mixTitle:inTok+" in / "+outTok+" out / "+cw+" cache write / "+cr+" cache read",pings:i%3===0?2:0,cost:U(cost),flag:i===flag?"flag":"",ref:i===flag?((el)=>{if(el)this._flagEl=el;}):null});
+      }
+    }
+    // proxy
+    const p=s.proxy,pt=p.today;
+    const px={
+      statusBadge:proxyUp?"b-good":"b-crit",statusText:proxyUp?"online":"offline",
+      uptime:proxyUp?"up "+(p.uptimeSeconds/3600).toFixed(1)+"h":"unreachable",
+      plan:p.plan,ttlText:p.plan==="subscription"?"3600s detected":"300s detected",
+      dailyText:U(p.budget.spentToday)+" / "+U(p.budget.dailyCapUsd),dailyBarStyle:"width:"+Math.min(100,p.budget.spentToday/p.budget.dailyCapUsd*100).toFixed(1)+"%",
+      monthlyText:U(p.budget.spentMonth)+" / "+U(p.budget.monthlyCapUsd),monthlyBarStyle:"width:"+Math.min(100,p.budget.spentMonth/p.budget.monthlyCapUsd*100).toFixed(1)+"%",
+      netSaved:U(pt.netSavedUsd),saved:U(pt.savedUsd),pingSpend:U(pt.pingSpendUsd),rebuilds:pt.rebuildsAvoided,pingsFired:pt.pingsFired,pingsSkipped:pt.pingsSkipped,
+      resumesTotal:pt.resumes.survived+pt.resumes.partial+pt.resumes.rebuilt,resumeDetail:pt.resumes.survived+" survived · "+pt.resumes.partial+" partial · "+pt.resumes.rebuilt+" rebuilt",
+      hitRate:this.pct(d.cache.hitRate),cacheRead:this.tok(d.cache.totalRead)
+    };
+    const liveCards=s.live.map(l=>{
+      const active=l.cacheStatus!=="abandoned"&&l.cacheStatus!=="paused";
+      const cd=Math.max(0,(l.detectedTtlSeconds-30)-l.idleSec);
+      const frac=cd/((l.detectedTtlSeconds-30)||1);
+      const pinging=l.flash>0;
+      return{project:l.projectPath,model:l.model,idle:this.mmss(l.idleSec),pings:l.pingCount5h,cacheStatus:l.cacheStatus,statusBadge:l.cacheStatus==="warm"?"b-good":l.cacheStatus==="cold"?"b-dim":l.cacheStatus==="paused"?"b-warn":"b-dim",cdText:!active?"—":pinging?"ping fired":this.mmss(cd),pingingCls:pinging?"pinging":"",warnCls:cd<30?"warnc":"",barStyle:"width:"+(active?(frac*100).toFixed(1):"0")+"%",saved:U(l.savedUsdAllTime),pingCost:U(l.pingCostUsd5h)};
+    });
+    const events=s.events.map(e=>({text:e.text,project:e.project,time:this.clock(e.ts),dotStyle:"background:"+this.evColor(e.kind)}));
+    const ttlAdvice=d.ttl.map(a=>({project:a.project,reasoning:a.reasoning,verdict:this.verdictLabel(a.verdict),badge:a.verdict==="keep"?"b-dim":a.monthlyDeltaUsd>0?"b-good":"b-accent",delta:a.monthlyDeltaUsd===0?"no change":(a.monthlyDeltaUsd>0?"save ":"cost ")+U(Math.abs(a.monthlyDeltaUsd))+"/mo"}));
+    // waste
+    const findings=d.waste.findings;
+    const totalWaste=findings.reduce((a,f)=>a+f.wastedUsd,0);
+    const byType={};findings.forEach(f=>byType[f.type]=(byType[f.type]||0)+f.wastedUsd);
+    const topType=Object.entries(byType).sort((a,b)=>b[1]-a[1])[0];
+    const wtypes=["all",...Object.keys(byType)];
+    const wasteTypeChips=wtypes.map(t=>({label:t==="all"?"All types":this.typeLabel(t),on:s.wasteType===t?"on":"",onClick:this.setWasteType(t)}));
+    const wf=s.wasteType==="all"?findings:findings.filter(f=>f.type===s.wasteType);
+    const wasteRows=[...wf].sort((a,b)=>b.wastedUsd-a.wastedUsd).map((f,i)=>{const id=f.session_id+f.ts;return{typeLabel:this.typeLabel(f.type),badge:this.typeBadge(f.type),project:f.project,when:this.dateShort(f.ts),wasted:U(f.wastedUsd),caret:s.openWaste===id?"▲":"▼",open:s.openWaste===id,recommendation:f.recommendation,proxyNote:f.type==="cache_expiry"&&f.detail&&f.detail.proxyWasUp,toggle:this.toggleWaste(id),onKey:this.rowKey(this.toggleWaste(id)),openSession:()=>this.openWasteFinding(f)};});
+    const attribution=d.waste.attribution.map(a=>({lever:a.lever,before:a.eventsPerSessionBefore.toFixed(2),after:a.eventsPerSessionAfter.toFixed(2),saved:U(a.estSavedUsd)}));
+    const attrSaved=d.waste.attribution.reduce((a,x)=>a+x.estSavedUsd,0);
+    const waste={total:U(totalWaste),count:findings.length,attrSaved:U(attrSaved),leverCount:d.waste.attribution.length,topType:this.typeLabel(topType[0]),topTypeAmt:U(topType[1])};
+    const interventions=d.interventions.map(i=>({mode:i.mode,badge:i.mode==="enforce"?"b-crit":i.mode==="warn"?"b-warn":"b-accent",message:i.message,lever:i.lever,project:i.project,time:this.dateShort(i.ts)}));
+
+    return{
+      tabs,onTabKey:this.onTabKey,toggleTheme:this.toggleTheme,
+      themeIcon:s.theme==="light"?"☀":"☾",themeAria:s.theme==="light"?"Switch to dark theme":"Switch to light theme",
+      proxyPillCls:proxyUp?"":"down",proxyPillText:proxyUp?"proxy up":"proxy down",proxyPillTitle:proxyUp?"Keep-alive proxy is online":"Keep-alive proxy is unreachable",agoText,
+      loading:s.loading,ready:!s.loading,
+      isOverview:s.tab==="overview",isSessions:s.tab==="sessions",isProxy:s.tab==="proxy",isWaste:s.tab==="waste",
+      layoutA:s.overviewLayout==="A",layoutB:s.overviewLayout==="B",layA:s.overviewLayout==="A"?"on":"",layB:s.overviewLayout==="B"?"on":"",setLayoutA:this.setLayoutA,setLayoutB:this.setLayoutB,
+      ov,doNow,spendBars,statCards,
+      // sessions
+      sessDetail:!!sel0,sessList:!sel0,sel,turns,wfRef:this.wfRef,backToSessions:this.backToSessions,
+      f:{project:s.sessProject,model:s.sessModel,query:s.sessQuery,dayActive:!!s.sessDay,dayLabel:s.sessDay?this.dayLabel(s.sessDay):""},
+      projectOpts,modelOpts,rangeChips,onProject:this.onProject,onModel:this.onModel,onQuery:this.onQuery,clearDay:this.clearDay,
+      sessCols,sessRows,hasSessions:sessRows.length>0,noSessions:sessRows.length===0,sessCount:rows.length+" session"+(rows.length===1?"":"s")+" · sorted by "+sk,
+      // proxy
+      px,liveCards,events,ttlAdvice,proxyIsDown:s.proxyDown,proxyIsUp:!s.proxyDown,
+      downToggleLabel:s.proxyDown?"Simulate proxy up":"Simulate proxy down",downToggleCls:s.proxyDown?"on":"",toggleProxyDown:this.toggleProxyDown,
+      // waste
+      wasteFindings:s.wasteView==="findings",wasteLog:s.wasteView==="log",wFindingsCls:s.wasteView==="findings"?"on":"",wLogCls:s.wasteView==="log"?"on":"",showFindings:this.showFindings,showLog:this.showLog,
+      wasteTypeChips,wasteRows,attribution,waste,interventions,
+      toasts:s.toasts
+    };
+  }
+  setSessDayGo=(day)=>{this.setSessQ("day",day);};
+}
+</script>
+</body>
+</html>

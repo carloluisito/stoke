@@ -37,13 +37,20 @@ headline is **net savings** (gross minus ping spend), never gross.
 ```bash
 git clone https://github.com/carloluisito/stoke
 cd stoke
-npm install
-node packages/cli/bin/stoke.mjs install    # Claude Code hooks/skills/statusline + auto-start at logon
+npm run setup
 ```
 
-Requires Node ≥ 20. The proxy and CLI keep **zero runtime dependencies**;
-the monitor uses Fastify + better-sqlite3 + chokidar. Migrating from a
-standalone tokeff install? Add `--migrate-db <path-to-tokeff.db>`.
+One command: installs dependencies, builds the dashboard, runs the full test
+suite as a gate, detects every Claude Code profile on the machine
+(`~/.claude`, `~/.claude-work`, `~/.claude-personal`, …), installs the
+hooks/skills/statusline into each, persists the profile list to
+`~/.stoke/config.json`, and registers auto-start at logon. Idempotent —
+re-run it any time.
+
+Requires Node ≥ 20 (≥ 22 recommended on Windows). The proxy and CLI keep
+**zero runtime dependencies**; the monitor uses Fastify + better-sqlite3 +
+chokidar. Migrating from a standalone tokeff install? `npm run setup --
+--migrate-db <path-to-tokeff.db>`.
 
 ## Run
 

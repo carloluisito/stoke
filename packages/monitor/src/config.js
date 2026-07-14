@@ -22,12 +22,17 @@ export function loadConfig(env = process.env, overrides = {}) {
   // Multi-profile: TOKEFF_CONFIG_DIRS="~/.claude-work,~/.claude-personal" watches
   // and installs into every listed profile. Falls back to CLAUDE_CONFIG_DIR, then ~/.claude.
   const expand = (p) => path.resolve(p.trim().replace(/^~(?=$|[\\/])/, os.homedir()));
-  const configDirs = env.TOKEFF_CONFIG_DIRS
-    ? env.TOKEFF_CONFIG_DIRS.split(/[,;]/).map(expand).filter(Boolean)
-    : [env.CLAUDE_CONFIG_DIR ? expand(env.CLAUDE_CONFIG_DIR) : path.join(os.homedir(), ".claude")];
-  const configDir = configDirs[0];
   const stoke = readStokeConfig(env);
   const monitor = stoke.monitor ?? {};
+  // Profile resolution order: TOKEFF_CONFIG_DIRS env (ad-hoc override) >
+  // persisted monitor.configDirs in ~/.stoke/config.json (survives logon
+  // auto-start, where no shell env is set) > CLAUDE_CONFIG_DIR > ~/.claude.
+  const configDirs = env.TOKEFF_CONFIG_DIRS
+    ? env.TOKEFF_CONFIG_DIRS.split(/[,;]/).map(expand).filter(Boolean)
+    : Array.isArray(monitor.configDirs) && monitor.configDirs.length > 0
+      ? monitor.configDirs.map(expand)
+      : [env.CLAUDE_CONFIG_DIR ? expand(env.CLAUDE_CONFIG_DIR) : path.join(os.homedir(), ".claude")];
+  const configDir = configDirs[0];
   const stokeDir = path.join(os.homedir(), ".stoke");
   return {
     configDir,

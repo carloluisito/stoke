@@ -173,8 +173,49 @@ async function cmdStatus() {
   }
 }
 
+// Claude Code profiles to install into: TOKEFF_CONFIG_DIRS env wins, then
+// CLAUDE_CONFIG_DIR, then every ~/.claude* dir that looks like a profile
+// (has settings.json or projects/). Multi-profile setups (.claude-work +
+// .claude-personal) get hooks and transcript-watching in all of them.
+function detectProfiles() {
+  if (process.env.TOKEFF_CONFIG_DIRS) {
+    return process.env.TOKEFF_CONFIG_DIRS.split(/[,;]/).map((p) => path.resolve(p.trim())).filter(Boolean);
+  }
+  if (process.env.CLAUDE_CONFIG_DIR) return [path.resolve(process.env.CLAUDE_CONFIG_DIR)];
+  const home = os.homedir();
+  const found = [];
+  for (const entry of fs.readdirSync(home, { withFileTypes: true })) {
+    if (!entry.isDirectory() || !/^\.claude($|-)/.test(entry.name)) continue;
+    const dir = path.join(home, entry.name);
+    if (fs.existsSync(path.join(dir, "settings.json")) || fs.existsSync(path.join(dir, "projects"))) {
+      found.push(dir);
+    }
+  }
+  return found.length > 0 ? found : [path.join(home, ".claude")];
+}
+
+/** Persist monitor + optimizer sections into ~/.stoke/config.json (additive). */
+function persistStokeConfig(configDirs) {
+  const cfgPath = path.join(stokeDir, "config.json");
+  let cfg = {};
+  try { cfg = JSON.parse(fs.readFileSync(cfgPath, "utf8")); } catch { /* fresh */ }
+  cfg.monitor = { ...(cfg.monitor ?? {}), configDirs };
+  if (!cfg.optimizer) {
+    try {
+      cfg.optimizer = JSON.parse(fs.readFileSync(path.join(monitorDir, "plugin", "optimizer-config.json"), "utf8"));
+    } catch { /* optimizer defaults stay in the plugin file */ }
+  }
+  fs.writeFileSync(cfgPath, JSON.stringify(cfg, null, 2));
+  return cfgPath;
+}
+
 function cmdInstall() {
   fs.mkdirSync(stokeDir, { recursive: true });
+
+  const profiles = detectProfiles();
+  const cfgPath = persistStokeConfig(profiles);
+  console.log(`Claude profiles: ${profiles.join(", ")}`);
+  console.log(`Persisted to ${cfgPath} (monitor.configDirs + optimizer levers)`);
 
   // 1. Optional DB migration from the pre-merge tokeff install.
   const mIdx = rest.indexOf("--migrate-db");
@@ -191,8 +232,12 @@ function cmdInstall() {
     }
   }
 
-  // 2. Claude Code hooks / skills / agents / statusline.
-  const r = spawnSync(process.execPath, ["scripts/install.mjs"], { cwd: monitorDir, stdio: "inherit" });
+  // 2. Claude Code hooks / skills / agents / statusline — into every profile.
+  const r = spawnSync(process.execPath, ["scripts/install.mjs"], {
+    cwd: monitorDir,
+    stdio: "inherit",
+    env: { ...process.env, TOKEFF_CONFIG_DIRS: profiles.join(",") },
+  });
   if (r.status !== 0) {
     console.error("Claude Code integration install failed — see output above.");
     process.exit(r.status ?? 1);

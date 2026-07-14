@@ -9,6 +9,7 @@
   "workspaces": ["packages/*"],
   "bin": { "stoke": "packages/cli/bin/stoke.mjs" },
   "scripts": {
+    "setup": "node scripts/setup.mjs",
     "start": "node packages/cli/bin/stoke.mjs start",
     "status": "node packages/cli/bin/stoke.mjs status",
     "test": "npm run test -ws --if-present",
