@@ -7,3 +7,4 @@ spike/
 # Local AI-tooling state (not part of the project)
 .brain/
 .claude/
+.playwright-mcp/

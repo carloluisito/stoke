@@ -29,6 +29,76 @@ export const ago = (ts) => {
   return `${Math.floor(s / 86400)}d ago`;
 };
 
+// Always-two-decimals money, matching the design prototype ($1,234.56 style kept
+// simple as $1234.56 for tabular alignment).
+export const money = (n) => "$" + Number(n ?? 0).toFixed(2);
+export const pct = (n) => (Number(n ?? 0) * 100).toFixed(1) + "%";
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const pad = (n) => String(n).padStart(2, "0");
+
+// HH:MM:SS wall clock from an epoch ms or ISO string.
+export const clock = (ts) => {
+  const d = new Date(ts);
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+};
+
+// "Jul 14, 09:12" from an ISO timestamp.
+export const dateShort = (iso) => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return `${MONTHS[d.getMonth()]} ${d.getDate()}, ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+
+// "Jul 14" from a YYYY-MM-DD day string (UTC to match the day bucketing).
+export const dayLabel = (day) => {
+  const d = new Date(day + "T00:00:00Z");
+  return `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}`;
+};
+
+// "12s ago" / "5m ago" / "2h ago" from a whole-second count.
+export const agoStr = (sec) => {
+  if (sec < 60) return sec + "s ago";
+  const m = Math.floor(sec / 60);
+  if (m < 60) return m + "m ago";
+  return Math.floor(m / 60) + "h ago";
+};
+
+// M:SS from a second count (clamped at zero).
+export const mmss = (sec) => {
+  sec = Math.max(0, Math.floor(sec));
+  return Math.floor(sec / 60) + ":" + pad(sec % 60);
+};
+
+export const typeLabel = (t) =>
+  ({
+    cache_expiry: "Cache expiry",
+    cache_invalidation: "Cache invalidation",
+    session_bloat: "Session bloat",
+    output_verbosity: "Output verbosity",
+    model_mismatch: "Model mismatch",
+  }[t] || t);
+
+export const typeBadge = (t) =>
+  ({
+    cache_expiry: "b-serious",
+    session_bloat: "b-crit",
+    cache_invalidation: "b-warn",
+    output_verbosity: "b-warn",
+    model_mismatch: "b-accent",
+  }[t] || "b-dim");
+
+export const verdictLabel = (v) =>
+  ({ "switch-1h": "Switch to 1h", "switch-5m": "Switch to 5m", keep: "Keep current" }[v] || v);
+
+export const evColor = (k) =>
+  ({
+    ping_fired: "var(--good)",
+    prevented_rebuild: "var(--good)",
+    session_resumed: "var(--accent)",
+    real_request: "var(--dim)",
+  }[k] || "var(--dim)");
+
 // Projects are path-encoded dirs ("C--Users-me-Desktop-work-my-app"). Strip the
 // longest common prefix across all projects so only the distinguishing tail shows.
 export function projectLabeler(projects) {

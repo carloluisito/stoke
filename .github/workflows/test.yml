@@ -39,5 +39,8 @@ jobs:
       - name: Test (all workspaces)
         run: npm test
 
-      - name: Build dashboard
-        run: npm ci --prefix packages/monitor/web && npm run build --prefix packages/monitor/web
+      - name: Test + build dashboard
+        run: |
+          npm ci --prefix packages/monitor/web
+          npm test --prefix packages/monitor/web
+          npm run build --prefix packages/monitor/web
