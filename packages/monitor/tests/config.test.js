@@ -3,23 +3,28 @@ import { loadConfig } from "../src/config.js";
 import path from "node:path";
 import os from "node:os";
 
+// Hermetic env base: point STOKE_CONFIG at a nonexistent file so the test
+// never picks up the developer machine's real ~/.stoke/config.json (whose
+// persisted monitor.configDirs would override env-based resolution).
+const BASE = { STOKE_CONFIG: path.join(os.tmpdir(), "stoke-config-that-does-not-exist.json") };
+
 describe("loadConfig", () => {
   it("uses CLAUDE_CONFIG_DIR when set", () => {
-    const c = loadConfig({ CLAUDE_CONFIG_DIR: "C:/x/.claude-work" });
+    const c = loadConfig({ ...BASE, CLAUDE_CONFIG_DIR: "C:/x/.claude-work" });
     expect(c.configDir).toBe(path.resolve("C:/x/.claude-work"));
     expect(c.transcriptGlobDir).toBe(path.join(path.resolve("C:/x/.claude-work"), "projects"));
   });
   it("falls back to ~/.claude", () => {
-    const c = loadConfig({});
+    const c = loadConfig({ ...BASE });
     expect(c.configDir).toBe(path.join(os.homedir(), ".claude"));
   });
   it("defaults port 5599 and range excludes 9876", () => {
-    const c = loadConfig({});
+    const c = loadConfig({ ...BASE });
     expect(c.port).toBe(5599);
     expect(c.portRange).toEqual([5600, 5610]);
   });
   it("accepts overrides", () => {
-    const c = loadConfig({}, { port: 6001 });
+    const c = loadConfig({ ...BASE }, { port: 6001 });
     expect(c.port).toBe(6001);
   });
   it("supports multiple profiles via TOKEFF_CONFIG_DIRS", () => {
@@ -32,7 +37,7 @@ describe("loadConfig", () => {
     expect(c.configDir).toBe(path.resolve("C:/x/.claude-work")); // first dir stays the primary
   });
   it("single profile still yields one-element configDirs", () => {
-    const c = loadConfig({ CLAUDE_CONFIG_DIR: "C:/x/.claude-work" });
+    const c = loadConfig({ ...BASE, CLAUDE_CONFIG_DIR: "C:/x/.claude-work" });
     expect(c.configDirs).toEqual([path.resolve("C:/x/.claude-work")]);
   });
   it("expands ~ to the home directory", () => {
