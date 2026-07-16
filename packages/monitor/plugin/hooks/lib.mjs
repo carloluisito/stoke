@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
+import { contextSidecarPath } from "../../src/context-sidecar.js";
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const stokeDir = path.join(os.homedir(), ".stoke");
@@ -70,6 +71,20 @@ export function saveReads(sessionId, reads) {
     fs.mkdirSync(path.dirname(p), { recursive: true });
     fs.writeFileSync(p, JSON.stringify(reads));
   } catch { /* fail open */ }
+}
+
+// Live-context sidecar: written by the statusline (the only place Claude Code
+// delivers context_window), read by the UserPromptSubmit hook.
+export function saveContext(sessionId, payload) {
+  try {
+    const p = contextSidecarPath(sessionId, stokeDir);
+    fs.mkdirSync(path.dirname(p), { recursive: true });
+    fs.writeFileSync(p, JSON.stringify(payload));
+  } catch { /* fail open */ }
+}
+
+export function loadContext(sessionId) {
+  try { return JSON.parse(fs.readFileSync(contextSidecarPath(sessionId, stokeDir), "utf8")); } catch { return null; }
 }
 
 export function emit(obj) {
