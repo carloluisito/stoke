@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import net from "node:net";
+import os from "node:os";
+import path from "node:path";
 import { openDb } from "../src/db.js";
 import { loadPricing } from "../src/pricing.js";
 import { loadConfig } from "../src/config.js";
@@ -32,6 +34,29 @@ describe("api routes", () => {
     const body = res.json();
     expect(body).toHaveProperty("findings");
     expect(body).toHaveProperty("attribution");
+  });
+});
+
+describe("missing dashboard build", () => {
+  // projectRoot with no web/dist — simulates a fresh checkout that skipped setup.
+  const noDist = { ...loadConfig({}), projectRoot: path.join(os.tmpdir(), "stoke-no-dist-xyz") };
+
+  it("serves a helpful 503 HTML page for the UI instead of a raw 404", async () => {
+    const a = buildServer({ db, rules: loadPricing(), config: noDist });
+    const res = await a.inject({ method: "GET", url: "/" });
+    expect(res.statusCode).toBe(503);
+    expect(res.headers["content-type"]).toContain("text/html");
+    expect(res.body).toMatch(/not built|npm run setup/i);
+    await a.close();
+  });
+
+  it("still answers real API routes and 404s unknown /api as JSON", async () => {
+    const a = buildServer({ db, rules: loadPricing(), config: noDist });
+    expect((await a.inject({ method: "GET", url: "/api/overview" })).statusCode).toBe(200);
+    const miss = await a.inject({ method: "GET", url: "/api/nope" });
+    expect(miss.statusCode).toBe(404);
+    expect(() => miss.json()).not.toThrow();
+    await a.close();
   });
 });
 
