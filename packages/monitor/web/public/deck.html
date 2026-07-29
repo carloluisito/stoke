@@ -14,145 +14,137 @@
   html,body{height:100%}
   body{background:var(--bg);color:var(--fg);font:16px/1.5 "Segoe UI",system-ui,-apple-system,sans-serif;overflow:hidden}
   .deck{height:100vh;display:flex;align-items:center;justify-content:center;padding:3vh 5vw}
-  .slide{display:none;width:100%;max-width:1080px}
+  .slide{display:none;width:100%;max-width:1060px}
   .slide.on{display:block;animation:in .18s ease-out}
   @keyframes in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 
   h1{font-size:clamp(40px,7vw,84px);font-weight:700;letter-spacing:-2px;line-height:1}
   h1 .sub{display:block;font-size:clamp(15px,1.7vw,21px);font-weight:400;color:var(--dim);letter-spacing:0;margin-top:18px}
-  h2{font-size:clamp(24px,3.4vw,40px);font-weight:650;letter-spacing:-.6px;line-height:1.15;margin-bottom:8px}
+  h2{font-size:clamp(24px,3.3vw,39px);font-weight:650;letter-spacing:-.6px;line-height:1.15;margin-bottom:10px}
   .kicker{font-size:12px;letter-spacing:2.5px;text-transform:uppercase;color:var(--faint);margin-bottom:14px}
-  .lede{font-size:clamp(16px,1.9vw,22px);color:var(--dim);max-width:780px;margin-bottom:32px}
+  .lede{font-size:clamp(16px,1.9vw,21px);color:var(--dim);max-width:800px;margin-bottom:30px}
 
-  .big{font-size:clamp(40px,6.4vw,74px);font-weight:700;letter-spacing:-2px;line-height:1;font-variant-numeric:tabular-nums}
-  .cap{font-size:13.5px;color:var(--dim);margin-top:8px}
-  .row{display:flex;gap:40px;flex-wrap:wrap}
-  .row>div{flex:1;min-width:180px}
+  .row{display:flex;gap:26px;flex-wrap:wrap}
+  .row>div{flex:1;min-width:210px}
 
-  .bar{display:flex;height:52px;border-radius:8px;overflow:hidden;margin:26px 0 12px;background:var(--panel)}
-  .bar span{display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:#0d0f12;white-space:nowrap;overflow:hidden}
-  .legend{display:flex;gap:22px;flex-wrap:wrap;font-size:13.5px;color:var(--dim)}
-  .legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:7px}
-
-  table{width:100%;border-collapse:collapse;font-size:16px}
-  th{text-align:left;font-size:11.5px;letter-spacing:1.4px;text-transform:uppercase;color:var(--faint);font-weight:500;padding:0 0 10px}
-  th.r,td.r{text-align:right}
-  td{padding:11px 0;border-top:1px solid var(--line)}
-  td.r{font-variant-numeric:tabular-nums;font-weight:600}
+  .price{display:flex;gap:26px;flex-wrap:wrap;margin-top:6px}
+  .price div{flex:1;min-width:150px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px 20px}
+  .price b{display:block;font-size:clamp(26px,3.4vw,40px);font-weight:700;letter-spacing:-1px;line-height:1;font-variant-numeric:tabular-nums}
+  .price span{display:block;font-size:13.5px;color:var(--dim);margin-top:8px}
 
   ul{list-style:none}
-  li{padding:13px 0 13px 22px;border-top:1px solid var(--line);position:relative;font-size:17px}
+  li{padding:12px 0 12px 22px;border-top:1px solid var(--line);position:relative;font-size:17px}
   li:first-child{border-top:0}
-  li:before{content:"";position:absolute;left:0;top:21px;width:7px;height:7px;border-radius:50%;background:var(--faint)}
+  li:before{content:"";position:absolute;left:0;top:20px;width:7px;height:7px;border-radius:50%;background:var(--faint)}
   li.good:before{background:var(--good)} li.bad:before{background:var(--bad)}
   li b{font-weight:650} li em{font-style:normal;color:var(--dim);display:block;font-size:14.5px;margin-top:3px}
 
-  .box{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:24px 26px}
+  .box{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:22px 24px}
   .box h3{font-size:17px;font-weight:650;margin-bottom:6px}
   .box p{font-size:14.5px;color:var(--dim)}
-  .box .tag{font-size:11px;letter-spacing:1.4px;text-transform:uppercase;color:var(--faint);margin-bottom:12px}
+  .box .tag{font-size:11px;letter-spacing:1.4px;text-transform:uppercase;color:var(--faint);margin-bottom:11px}
+
+  code{font:13.5px/1.7 ui-monospace,Consolas,monospace;color:var(--fg)}
+  pre{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin-top:6px;overflow-x:auto}
+  pre .c{color:var(--faint)}
 
   .nav{position:fixed;bottom:20px;right:26px;display:flex;align-items:center;gap:16px;font-size:12.5px;color:var(--faint);font-variant-numeric:tabular-nums}
   .nav button{background:none;border:1px solid var(--line);color:var(--dim);width:30px;height:30px;border-radius:6px;cursor:pointer;font-size:14px}
   .nav button:hover{border-color:var(--faint);color:var(--fg)}
   .progress{position:fixed;top:0;left:0;height:2px;background:var(--accent);transition:width .18s}
   .hint{position:fixed;bottom:24px;left:26px;font-size:12px;color:#3f4550}
-
-  /* Shown only when the monitor cannot be reached. */
-  .offline{position:fixed;top:14px;left:50%;transform:translateX(-50%);background:#2a1d1d;border:1px solid #4a2a2a;
-    color:#fca5a5;font-size:12.5px;padding:7px 14px;border-radius:7px;display:none;z-index:5}
-  .offline.on{display:block}
-  [data-k]{font-variant-numeric:tabular-nums}
-  .pending{color:var(--faint)}
 </style>
 </head>
 <body>
 <div class="progress" id="prog"></div>
-<div class="offline" id="offline"></div>
 <div class="deck">
 
   <!-- 1 -->
   <section class="slide on">
     <h1>stoke
-      <span class="sub">Finding out where my Claude Code money actually goes, and stopping the part that was wasted.</span>
+      <span class="sub">Finding out where Claude Code money actually goes, and stopping the part that is wasted.</span>
     </h1>
   </section>
 
   <!-- 2 -->
   <section class="slide">
-    <div class="kicker">The problem</div>
-    <h2>I was spending real money with no visibility.</h2>
-    <p class="lede">Claude Code gives you a total. It does not tell you which part of that total bought you anything.</p>
-    <div class="row">
-      <div><div class="big" data-k="spend.total">…</div><div class="cap">last <span data-k="window.days">30</span> days</div></div>
-      <div><div class="big" data-k="projects">…</div><div class="cap">projects</div></div>
-      <div><div class="big" data-k="worst.usd">…</div><div class="cap">worst single day<span data-k="worst.when"></span></div></div>
-    </div>
+    <div class="kicker">What I was trying to solve</div>
+    <h2>Claude Code tells you the total. It does not tell you what the total bought.</h2>
+    <p class="lede">Spend is visible only after the fact, as one number, with no way to tell the part that did real work from the part that was pure overhead. If you cannot separate the two, you cannot reduce either.</p>
+    <ul>
+      <li>Which projects are expensive, and why those ones</li>
+      <li>Which charges were avoidable, and what to do instead</li>
+      <li>Whether a change you made actually helped</li>
+    </ul>
   </section>
 
   <!-- 3 -->
   <section class="slide">
-    <div class="kicker">What I found first</div>
-    <h2 id="splitHead"><span data-k="cache.pct">…</span> of the bill was cache, not thinking.</h2>
-    <p class="lede" id="splitLede">Only <span data-k="output.pct">…</span> of the spend was Claude writing answers. The rest was paying to hold and reload the conversation.</p>
-    <div class="bar" id="composition"></div>
-    <div class="legend" id="splitLegend">
-      <span><i style="background:#3b82f6"></i>Reloading context</span>
-      <span><i style="background:#fbbf24"></i>Storing context</span>
-      <span><i style="background:#4ade80"></i>Actual answers</span>
-      <span><i style="background:#6b7280"></i>Fresh input <span data-k="spend.input"></span></span>
+    <div class="kicker">Why the money leaks</div>
+    <h2>Most of the bill is holding the conversation, not answering.</h2>
+    <p class="lede">Claude re-reads the whole conversation on every message. Cached, that is cheap. Let the cache go cold and the next message pays to rebuild all of it at full rate.</p>
+    <div class="price">
+      <div><b>0.1x</b><span>reading a warm cached conversation</span></div>
+      <div><b>1.25x</b><span>rebuilding it after the window closes</span></div>
+      <div><b>5x</b><span>what Claude writes, against what it reads</span></div>
     </div>
+    <p class="lede" style="margin-top:22px;margin-bottom:0">So one coffee break can cost more than the work either side of it, and a long session pays for its dead history on every single message.</p>
   </section>
 
   <!-- 4 -->
   <section class="slide">
-    <div class="kicker">The tool</div>
+    <div class="kicker">The approach</div>
     <h2>stoke: two engines behind one command.</h2>
-    <p class="lede">Claude keeps your conversation cached for a few minutes. Idle past that and the next message pays to rebuild all of it at full price.</p>
     <div class="row">
       <div class="box">
         <div class="tag">Engine 1, prevent</div>
         <h3>Keep-alive proxy</h3>
-        <p>Sits in front of the API and sends a zero-output ping before the cache window closes, so the conversation stays warm while you are away.</p>
+        <p>Sits in front of the API. Before a conversation's cache window closes it sends a ping that produces no output, so the conversation stays warm while you are away and the next real message pays the cheap rate instead of the rebuild rate.</p>
       </div>
       <div class="box">
         <div class="tag">Engine 2, measure</div>
-        <h3>Monitor</h3>
-        <p>Reads every transcript into SQLite, prices each turn, and runs five detectors that name the avoidable charges. Six hooks act on them live, including a hard block on oversized sessions.</p>
+        <h3>Monitor and dashboard</h3>
+        <p>Reads every transcript into a local database, prices each turn against the real rate card, and runs detectors that name each avoidable charge in plain language. Nothing leaves the machine.</p>
       </div>
     </div>
   </section>
 
   <!-- 5 -->
   <section class="slide">
-    <div class="kicker">What it found</div>
-    <h2><span data-k="avoid.usd">…</span> of that was avoidable. That is <span data-k="avoid.pct">…</span>.</h2>
-    <table>
-      <thead><tr><th>Cause</th><th class="r">Cost</th><th class="r">Times</th></tr></thead>
-      <tbody id="causes"><tr><td class="pending">reading from the monitor…</td><td></td><td></td></tr></tbody>
-    </table>
+    <div class="kicker">What it finds</div>
+    <h2>Five causes, each named in words you can act on.</h2>
+    <ul>
+      <li><b>You walked away and the cache went cold.</b><em>Idle past the window, so the next message rebuilt the conversation from scratch.</em></li>
+      <li><b>Replies were longer than the task needed.</b><em>Output costs about five times what input does, so verbosity is the most expensive habit there is.</em></li>
+      <li><b>Instructions were edited mid session.</b><em>Changing CLAUDE.md or settings while a session runs throws away everything cached for it.</em></li>
+      <li><b>Sessions ran near the context limit.</b><em>Every new message re-bills all the dead history behind it.</em></li>
+      <li><b>A top-tier model did mechanical work.</b><em>Bulk searching and file sweeps do not need the most expensive model.</em></li>
+    </ul>
   </section>
 
   <!-- 6 -->
   <section class="slide">
-    <div class="kicker">What worked</div>
-    <h2>Measurement changed my behaviour more than automation did.</h2>
+    <div class="kicker">What it does about it</div>
+    <h2>Six automatic steps, from a nudge to a refusal.</h2>
     <ul>
-      <li class="good"><b>Naming the cause in plain language.</b><em>"You walked away and the cache went cold" is something I can act on. A row reading cache_expiry is not.</em></li>
-      <li class="good"><b>Blocking oversized sessions outright.</b><em>The only lever with a certain payoff. It refuses the message instead of suggesting something, and it has fired on real work.</em></li>
-      <li class="good"><b>Making the readout cheap to load.</b><em>The dashboard went from 437 KB and 66,000 pixels of scroll to 2 KB. One query went from 277 ms to 0.03 ms.</em></li>
+      <li><b>Adds cost rules to every session.</b><em>Be brief, do not re-read files already in context, hand bulk searching to a cheaper model.</em></li>
+      <li><b>Warns before a conversation goes cold.</b><em>So you know the next message will pay the rebuild rate, before you send it.</em></li>
+      <li><b>Warns when a session grows too large.</b></li>
+      <li><b>Blocks a message from an oversized session outright.</b><em>The only step with a certain payoff. It refuses and asks for a compact first, rather than suggesting something.</em></li>
+      <li><b>Stops a full re-read of a file it already has.</b><em>Redirects to the part actually needed.</em></li>
+      <li><b>Records what every session cost.</b><em>So the next question about spend has an answer.</em></li>
     </ul>
   </section>
 
   <!-- 7 -->
   <section class="slide">
-    <div class="kicker">What did not work</div>
-    <h2>The thing I got wrong was my own reading of the data.</h2>
+    <div class="kicker">What happened</div>
+    <h2>Measurement changed behaviour more than automation did.</h2>
     <ul>
-      <li class="bad"><b>I almost cut the one part that was making money.</b>
-        <em id="keepalive">Most ping spend goes to sessions that never come back, which reads like waste. It is not. Every tighter cutoff I simulated lost money, because a rebuild avoided is worth many times what a ping costs.</em></li>
-      <li class="bad"><b>My first dashboard was unreadable.</b><em>Over a thousand rows, and the biggest number on screen was a negative amount. I had built it for myself, not for anyone seeing it once.</em></li>
-      <li class="bad"><b>One promised view was impossible.</b><em>A before and after install comparison. stoke started logging before my earliest transcript, so there is no before. I withdrew it rather than fake it.</em></li>
+      <li class="good"><b>Naming the cause in plain language was the whole product.</b><em>"You walked away and the cache went cold" is something you can act on. A row reading cache_expiry is not.</em></li>
+      <li class="good"><b>Refusing beats suggesting.</b><em>The hard block on oversized sessions is the one lever whose saving is certain, because nothing has to be believed for it to work.</em></li>
+      <li class="bad"><b>The first dashboard was unreadable.</b><em>Over a thousand rows and a negative number as the headline. Built for the person who wrote it, not for anyone seeing it once.</em></li>
+      <li class="bad"><b>I nearly cut the part that was making money.</b><em>Most keep-alive spend goes to sessions that never come back, which reads like waste. It is not: a rebuild avoided is worth many times a ping, and roughly half of idle sessions do come back.</em></li>
     </ul>
   </section>
 
@@ -161,16 +153,31 @@
     <div class="kicker">What I would do differently</div>
     <h2>Price the counterfactual, not just the cost.</h2>
     <ul>
-      <li><b>What something costs is easy. What it bought is the real question.</b><em>The ping spend took an hour to total. Working out what it prevented took a simulation over every idle session, and it reversed my conclusion.</em></li>
-      <li><b>Judge a bet by its odds, not by its losing half.</b><em>Paying cents for a coin-flip at a dollar is a good trade. Counting only the losses makes it look like a leak.</em></li>
-      <li><b>Test against live data, not fixtures.</b><em>Two bugs passed every unit test and only appeared against the real database.</em></li>
-      <li><b>Let the tool measure itself.</b><em>Every figure in this deck is read live from stoke's own database, including the one that proved me wrong.</em></li>
+      <li><b>What something costs is easy. What it bought is the real question.</b><em>Totalling the spend on a feature took an hour. Working out what it prevented reversed my conclusion about it.</em></li>
+      <li><b>Judge a bet by its odds, not by its losing half.</b><em>Counting only the losses makes a profitable gamble look like a leak.</em></li>
+      <li><b>Test against live data, not fixtures.</b><em>Two bugs passed every unit test and only appeared against a real database.</em></li>
+      <li><b>Write the numbers for a stranger from the start.</b><em>The rewrite that made the readout understandable cost more than the original build.</em></li>
     </ul>
+  </section>
+
+  <!-- 9 -->
+  <section class="slide">
+    <div class="kicker">Running it</div>
+    <h2>Local, single command, nothing shared.</h2>
+<pre><code><span class="c">// once per machine</span>
+npm run setup
+
+<span class="c">// starts the proxy and the monitor together</span>
+npm start
+
+<span class="c">// the dashboard</span>
+http://localhost:5599</code></pre>
+    <p class="lede" style="margin-top:24px;margin-bottom:0">Thresholds and each automatic step can be set to watch, warn, or enforce in <code>~/.stoke/config.json</code>. The database, the transcripts and the figures stay on the machine that produced them.</p>
   </section>
 
 </div>
 
-<div class="hint">Arrow keys to navigate. Drop a deck-data.json file here to show another machine&apos;s figures.</div>
+<div class="hint">Arrow keys to navigate</div>
 <div class="nav">
   <button id="prev" aria-label="Previous">&larr;</button>
   <span id="count"></span>
@@ -178,156 +185,23 @@
 </div>
 
 <script>
-// ---------------------------------------------------------------------------
-// Navigation
-const slides = [...document.querySelectorAll('.slide')];
-let i = 0;
-const show = (n) => {
-  i = Math.max(0, Math.min(slides.length - 1, n));
-  slides.forEach((s, k) => s.classList.toggle('on', k === i));
-  document.getElementById('count').textContent = (i + 1) + ' / ' + slides.length;
-  document.getElementById('prog').style.width = ((i + 1) / slides.length * 100) + '%';
-};
-document.getElementById('next').onclick = () => show(i + 1);
-document.getElementById('prev').onclick = () => show(i - 1);
-addEventListener('keydown', (e) => {
-  if (['ArrowRight', 'PageDown', ' ', 'Enter'].includes(e.key)) { e.preventDefault(); show(i + 1); }
-  if (['ArrowLeft', 'PageUp'].includes(e.key)) { e.preventDefault(); show(i - 1); }
-  if (e.key === 'Home') show(0);
-  if (e.key === 'End') show(slides.length - 1);
-});
-show(0);
-
-// ---------------------------------------------------------------------------
-// FIGURES. This file is standalone: no server, no network, no build step. Open
-// it by double-clicking it anywhere.
-//
-// To present a different machine's numbers, run this on that machine
-//
-//     node scripts/deck-data.mjs > deck-data.json
-//
-// then drag deck-data.json onto this page. Nothing is uploaded; the browser
-// reads the file locally. Or paste the same JSON over the block below.
-let DATA = {
-  windowDays: 30,
-  spend: { total: 4654.29, cacheRead: 2554.23, cacheWrite: 1637.25, output: 442.4, input: 20.4,
-           worstDay: { day: "2026-07-06", usd: 707.82 } },
-  avoidable: { usd: 452.41, pct: 9.72, findings: 671, projects: 20, causes: [
-    { type: "cache_expiry", usd: 245.9, count: 71 },
-    { type: "output_verbosity", usd: 88.51, count: 464 },
-    { type: "cache_invalidation", usd: 66.21, count: 25 },
-    { type: "session_bloat", usd: 45.82, count: 102 },
-    { type: "model_mismatch", usd: 5.97, count: 9 },
-  ] },
-  keepAlive: { allTime: { grossUsd: 368.54, pingUsd: 225.52, netUsd: 143.01, rebuildsAvoided: 344 } },
-};
-
-const usd = (n) => {
-  const v = Math.abs(n || 0);
-  if (v >= 1000) return '$' + Math.round(v).toLocaleString();
-  if (v >= 10) return '$' + v.toFixed(0);
-  return '$' + v.toFixed(2);
-};
-const pct = (n) => Math.round((n || 0) * 100) + '%';
-const put = (key, text) => document.querySelectorAll('[data-k="' + key + '"]').forEach((el) => { el.textContent = text; });
-
-// Detector ids are engineering labels. Same plain-language wording the
-// dashboard uses, inlined so this file needs nothing but a browser.
-const CAUSE = {
-  cache_expiry: 'You walked away and the cache went cold',
-  output_verbosity: 'Replies longer than the task needed',
-  cache_invalidation: 'Instructions edited mid session',
-  session_bloat: 'Sessions run near the context limit',
-  model_mismatch: 'Top model doing mechanical work',
-};
-
-function render(d) {
-  const sp = d.spend || {}, av = d.avoidable || {}, ka = (d.keepAlive || {}).allTime || {};
-  const total = sp.total || 0;
-  const parts = { cacheRead: sp.cacheRead || 0, cacheWrite: sp.cacheWrite || 0, output: sp.output || 0, input: sp.input || 0 };
-  const worst = sp.worstDay || null;
-
-  put('window.days', d.windowDays || 30);
-  put('spend.total', total > 0 ? usd(total) : 'no spend');
-  put('projects', av.projects != null ? av.projects : 'n/a');
-  put('worst.usd', worst ? usd(worst.usd) : 'n/a');
-  put('worst.when', worst && worst.day ? ', ' + new Date(worst.day + 'T00:00:00Z').toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '');
-  put('spend.input', usd(parts.input));
-
-  if (total > 0) {
-    put('cache.pct', pct((parts.cacheRead + parts.cacheWrite) / total));
-    put('output.pct', pct(parts.output / total));
-    const segs = [
-      ['cacheRead', '#3b82f6', 'Cache read'],
-      ['cacheWrite', '#fbbf24', 'Cache write'],
-      ['output', '#4ade80', 'Output'],
-      ['input', '#6b7280', ''],
-    ];
-    document.getElementById('composition').innerHTML = segs.map(([k, colour, label]) => {
-      const w = (parts[k] / total) * 100;
-      // Below about 6% a label cannot be read inside its own segment.
-      const text = label && w > 6 ? label + ' ' + usd(parts[k]) : '';
-      return '<span style="width:' + w.toFixed(1) + '%;background:' + colour + '">' + text + '</span>';
-    }).join('');
-  } else {
-    // No spend in the window: the whole premise of this slide is absent, so say
-    // that rather than rendering "None of the bill was cache".
-    document.getElementById('splitHead').textContent = 'No spend recorded in this window.';
-    document.getElementById('splitLede').textContent =
-      'With transcripts ingested, this slide shows how much of the bill was cache rather than answers.';
-    document.getElementById('composition').innerHTML = '';
-    document.getElementById('splitLegend').style.display = 'none';
-  }
-
-  put('avoid.usd', usd(av.usd));
-  // deck-data.mjs reports pct already multiplied out (9.72 meaning 9.72%).
-  put('avoid.pct', (av.pct != null ? Math.round(av.pct) : 0) + '%');
-  const causes = (av.causes || []).slice().sort((a, b) => b.usd - a.usd);
-  document.getElementById('causes').innerHTML = causes.length
-    ? causes.map((c) => '<tr><td>' + (CAUSE[c.type] || c.type) + '</td><td class="r">' + usd(c.usd) + '</td><td class="r">' + c.count + '</td></tr>').join('')
-    : '<tr><td class="pending">Nothing avoidable was detected in this window.</td><td></td><td></td></tr>';
-
-  const gross = ka.grossUsd || 0, ping = ka.pingUsd || 0, rebuilds = ka.rebuildsAvoided || 0;
-  document.getElementById('keepalive').textContent = (rebuilds > 0 && ping > 0)
-    ? 'Most ping spend goes to sessions that never come back, which reads like waste. It is not. Those pings cost ' + usd(ping) +
-      ' and prevented ' + rebuilds.toLocaleString() + ' rebuilds worth ' + usd(gross) + ', a return of ' + (gross / ping).toFixed(2) +
-      ' times on spend. One rebuild avoided is worth about ' + usd(gross / rebuilds) + ', many times what a single ping costs, so every tighter cutoff I simulated lost money.'
-    : 'The keep-alive proxy is not running on this machine, so there are no prevention figures to show. Where it does run, most ping spend goes to sessions that never come back, which reads like waste but is not: a rebuild avoided is worth many times what a ping costs.';
-}
-
-render(DATA);
-
-// Drag a deck-data.json file onto the page to present another machine's
-// figures. FileReader is local to the browser, so this works from file:// with
-// no server and nothing leaving the machine.
-const flash = (msg, bad) => {
-  const el = document.getElementById('offline');
-  el.textContent = msg;
-  el.style.color = bad ? '#fca5a5' : '#86efac';
-  el.style.background = bad ? '#2a1d1d' : '#16241a';
-  el.style.borderColor = bad ? '#4a2a2a' : '#265231';
-  el.classList.add('on');
-  if (!bad) setTimeout(() => el.classList.remove('on'), 2600);
-};
-addEventListener('dragover', (e) => e.preventDefault());
-addEventListener('drop', (e) => {
-  e.preventDefault();
-  const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-  if (!file) return;
-  const fr = new FileReader();
-  fr.onload = () => {
-    try {
-      const next = JSON.parse(String(fr.result));
-      if (!next || !next.spend) throw new Error('no spend section; is this the deck-data output?');
-      DATA = next;
-      render(DATA);
-      flash('Loaded ' + file.name + '. Now showing that machine’s figures.', false);
-    } catch (err) {
-      flash('Could not read ' + file.name + ': ' + err.message, true);
-    }
+  const slides = [...document.querySelectorAll('.slide')];
+  let i = 0;
+  const show = (n) => {
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('on', k === i));
+    document.getElementById('count').textContent = (i + 1) + ' / ' + slides.length;
+    document.getElementById('prog').style.width = ((i + 1) / slides.length * 100) + '%';
   };
-  fr.readAsText(file);
-});
+  document.getElementById('next').onclick = () => show(i + 1);
+  document.getElementById('prev').onclick = () => show(i - 1);
+  addEventListener('keydown', (e) => {
+    if (['ArrowRight', 'PageDown', ' ', 'Enter'].includes(e.key)) { e.preventDefault(); show(i + 1); }
+    if (['ArrowLeft', 'PageUp'].includes(e.key)) { e.preventDefault(); show(i - 1); }
+    if (e.key === 'Home') show(0);
+    if (e.key === 'End') show(slides.length - 1);
+  });
+  show(0);
 </script>
 </body>
 </html>
