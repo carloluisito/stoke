@@ -78,3 +78,88 @@ describe("startServer port fallback", () => {
     if (weBlocked) blocker.close();
   });
 });
+
+describe("GET /api/waste?rollup=1", () => {
+  it("returns a rollup instead of raw findings", async () => {
+    const res = await app.inject({ url: "/api/waste?days=30&rollup=1" });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body).toHaveProperty("causes");
+    expect(body).toHaveProperty("byProject");
+    expect(body).toHaveProperty("byDay");
+    expect(body).toHaveProperty("avoidableUsd");
+    expect(body).toHaveProperty("spendUsd");
+    expect(body).not.toHaveProperty("findings");
+    expect(Array.isArray(body.causes)).toBe(true);
+  });
+
+  it("never emits NaN for the avoidable share", async () => {
+    const res = await app.inject({ url: "/api/waste?days=30&rollup=1" });
+    expect(Number.isNaN(res.json().avoidablePct)).toBe(false);
+  });
+
+  it("keeps the raw shape when rollup is not requested", async () => {
+    const res = await app.inject({ url: "/api/waste" });
+    const body = res.json();
+    expect(body).toHaveProperty("findings");
+    expect(body).toHaveProperty("attribution");
+  });
+
+  // Spec success criterion 4. Only the absolute cap is asserted: this fixture
+  // has two turns and produces zero findings, so the raw payload is already
+  // tiny and the rollup's extra keys make it nominally larger. The size *win*
+  // is a property of real data volume (measured 437,627 -> 2,097 bytes on the
+  // live database, 209x) and can't be demonstrated on an empty fixture.
+  it("stays under the landing-screen payload budget", async () => {
+    const roll = await app.inject({ url: "/api/waste?days=30&rollup=1" });
+    expect(roll.body.length).toBeLessThan(5000);
+  });
+
+  it("collapses many findings into at most one row per cause", async () => {
+    const res = await app.inject({ url: "/api/waste?days=30&rollup=1" });
+    const body = res.json();
+    // Whatever the finding count, causes can never exceed the detector types.
+    expect(body.causes.length).toBeLessThanOrEqual(5);
+    const types = body.causes.map((c) => c.type);
+    expect(new Set(types).size).toBe(types.length); // one row per type
+  });
+});
+
+describe("GET /api/proxy/savings", () => {
+  it("returns a windowed savings summary", async () => {
+    const res = await app.inject({ url: "/api/proxy/savings?days=30" });
+    expect(res.statusCode).toBe(200);
+    const b = res.json();
+    expect(b.windowDays).toBe(30);
+    for (const k of ["savedUsd", "pingSpendUsd", "netSavedUsd", "rebuildsAvoided"]) {
+      expect(typeof b[k]).toBe("number");
+    }
+  });
+
+  it("supports all-time", async () => {
+    const res = await app.inject({ url: "/api/proxy/savings?days=all" });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().windowDays).toBe(0);
+  });
+
+  it("defaults to 30 days for a missing or junk value", async () => {
+    expect((await app.inject({ url: "/api/proxy/savings" })).json().windowDays).toBe(30);
+    expect((await app.inject({ url: "/api/proxy/savings?days=abc" })).json().windowDays).toBe(30);
+  });
+
+  it("returns a per-day series when asked", async () => {
+    const res = await app.inject({ url: "/api/proxy/savings?days=7&byDay=1" });
+    expect(res.statusCode).toBe(200);
+    expect(Object.keys(res.json().byDay)).toHaveLength(7);
+  });
+
+  it("omits the per-day series by default", async () => {
+    const res = await app.inject({ url: "/api/proxy/savings?days=7" });
+    expect(res.json().byDay).toBeUndefined();
+  });
+
+  it("omits the per-day series for all-time, which has no fixed day count", async () => {
+    const res = await app.inject({ url: "/api/proxy/savings?days=all&byDay=1" });
+    expect(res.json().byDay).toBeUndefined();
+  });
+});

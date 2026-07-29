@@ -1,5 +1,5 @@
 import { ruleFor, loadPricing, defaultModelPricingMap } from "../pricing.js";
-import { computeSavings } from "@stoke/shared/savings.mjs";
+import { computeSavings, computeSavingsMulti } from "@stoke/shared/savings.mjs";
 
 const M = 1_000_000;
 
@@ -77,6 +77,43 @@ export function preventedSavings(db, rules, fromTs, toTs = null) {
     netSavedUsd: s.netSavedUsd,
   };
   memo.set(key, out);
+  return out;
+}
+
+/**
+ * Net USD the keep-alive prevented, bucketed by UTC day and zero-filled across
+ * the whole window so the trend chart has no gaps.
+ *
+ * One pass over the event log for all N days — computeSavingsMulti shares the
+ * predecessor map across windows, so 30 days cost the same as one.
+ *
+ * @returns {Record<string, number>} 'YYYY-MM-DD' -> net USD saved that day
+ */
+export function preventedByDay(db, rules, days = 30, now = new Date()) {
+  const events = loadProxyEvents(db);
+  const cfg = savingsConfig(rules);
+
+  // Day keys match how costByDay buckets spend (substr(ts,1,10)) so the two
+  // series line up on the chart.
+  const dayKeys = [];
+  const windows = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const key = new Date(now.getTime() - i * 86400e3).toISOString().slice(0, 10);
+    dayKeys.push(key);
+    windows.push({
+      fromMs: Date.parse(key + "T00:00:00.000Z"),
+      toMs: Date.parse(key + "T23:59:59.999Z"),
+    });
+  }
+
+  const results = computeSavingsMulti(events, cfg, windows);
+  const out = {};
+  for (let i = 0; i < dayKeys.length; i++) {
+    const v = results[i]?.netSavedUsd;
+    // Clamp: a day with pings but no prevented rebuild nets negative, which
+    // would render as an inverted bar. Zero is the honest floor for a chart.
+    out[dayKeys[i]] = Number.isFinite(v) ? Math.max(0, v) : 0;
+  }
   return out;
 }
 

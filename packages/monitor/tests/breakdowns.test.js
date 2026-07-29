@@ -153,3 +153,61 @@ describe("preventedSavings memoization", () => {
     expect(db.scans()).toBe(1);
   });
 });
+
+// ── preventedByDay ────────────────────────────────────────────────────────────
+// Feeds the trend chart's third band, so stoke's value visibly accrues instead
+// of being a single number.
+
+import { preventedByDay } from "../src/analytics/breakdowns.js";
+
+describe("preventedByDay", () => {
+  // A real_request whose gap from its predecessor exceeds the TTL is a prevented
+  // rebuild; cache_read tokens are what would otherwise have been re-billed.
+  const req = (ts, cacheRead) => ({
+    kind: "real_request", ts, sessionKey: "s1",
+    model: "claude-sonnet-4-5", usage: { cache_read_input_tokens: cacheRead },
+  });
+
+  function makeDb(events) {
+    return {
+      prepare(sql) {
+        if (/MAX\(id\)/.test(sql)) return { get: () => ({ m: events.length }) };
+        return { all: () => events.map((e) => ({ raw: JSON.stringify(e) })), get: () => ({ c: 0 }) };
+      },
+    };
+  }
+
+  it("returns a bucket keyed by UTC day", () => {
+    const db = makeDb([
+      req("2026-07-20T10:00:00.000Z", 0),
+      req("2026-07-20T11:00:00.000Z", 500000), // 1h gap > 300s TTL -> prevented
+    ]);
+    const out = preventedByDay(db, null, 30, new Date("2026-07-21T00:00:00.000Z"));
+    expect(Object.keys(out)).toContain("2026-07-20");
+    expect(out["2026-07-20"]).toBeGreaterThan(0);
+  });
+
+  it("covers every day in the window, zero-filled", () => {
+    const db = makeDb([]);
+    const out = preventedByDay(db, null, 7, new Date("2026-07-21T00:00:00.000Z"));
+    expect(Object.keys(out)).toHaveLength(7);
+    for (const v of Object.values(out)) expect(v).toBe(0);
+  });
+
+  it("orders days oldest-first", () => {
+    const db = makeDb([]);
+    const keys = Object.keys(preventedByDay(db, null, 3, new Date("2026-07-21T00:00:00.000Z")));
+    expect(keys).toEqual(["2026-07-19", "2026-07-20", "2026-07-21"]);
+  });
+
+  it("never returns NaN or a negative bar", () => {
+    const db = makeDb([
+      { kind: "ping_fired", ts: "2026-07-20T10:00:00.000Z", sessionKey: "s1", costUsd: 5 },
+    ]);
+    const out = preventedByDay(db, null, 3, new Date("2026-07-21T00:00:00.000Z"));
+    for (const v of Object.values(out)) {
+      expect(Number.isNaN(v)).toBe(false);
+      expect(v).toBeGreaterThanOrEqual(0);
+    }
+  });
+});
