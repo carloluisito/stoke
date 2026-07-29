@@ -2,8 +2,9 @@ import Fastify from "fastify";
 import fastifyStatic from "@fastify/static";
 import fs from "node:fs";
 import path from "node:path";
-import { spendByDay, costByDay, cacheSavedUsd, spendByProject, spendByModel, sessions, sessionDetail, cacheStats, overview, netCost, proxySummary } from "./analytics/breakdowns.js";
+import { spendByDay, costByDay, cacheSavedUsd, spendByProject, spendByModel, sessions, sessionDetail, cacheStats, overview, netCost, proxySummary, preventedSavings, preventedByDay } from "./analytics/breakdowns.js";
 import { runDetectors, ttlAdvisor, savingsAttribution } from "./analytics/detectors.js";
+import { rollupFindings } from "./analytics/rollup.js";
 
 /** Live state from the proxy's loopback stats endpoint; null when it's down. */
 async function fetchProxyStats(config) {
@@ -32,6 +33,19 @@ export function buildServer({ db, rules, config }) {
     const live = await fetchProxyStats(config);
     return { up: live !== null, live, ...proxySummary(db, rules) };
   });
+  // Windowed keep-alive savings. preventedSavings already accepts an arbitrary
+  // window, so this is a thin route over existing math. days=all -> since install,
+  // which is what the landing screen's cumulative counter shows.
+  app.get("/api/proxy/savings", (req) => {
+    const raw = req.query.days;
+    const days = raw === "all" ? 0 : Number(raw) || 30;
+    const from = days > 0
+      ? new Date(Date.now() - days * 86400e3).toISOString()
+      : "1970-01-01T00:00:00.000Z";
+    const out = { windowDays: days, ...preventedSavings(db, rules, from) };
+    if (req.query.byDay === "1" && days > 0) out.byDay = preventedByDay(db, rules, days);
+    return out;
+  });
   app.get("/api/spend/daily", (req) => spendByDay(db, { days: Number(req.query.days) || 30 }));
   app.get("/api/spend/daily-cost", (req) => costByDay(db, rules, { days: Number(req.query.days) || 30 }));
   app.get("/api/spend/projects", () => spendByProject(db));
@@ -39,10 +53,20 @@ export function buildServer({ db, rules, config }) {
   app.get("/api/sessions", (req) => sessions(db, { limit: Number(req.query.limit) || 50 }));
   app.get("/api/sessions/:id", (req) => sessionDetail(db, req.params.id));
   app.get("/api/cache", () => cacheStats(db));
-  app.get("/api/waste", () => ({
-    findings: runDetectors(db, rules).sort((a, b) => b.wastedUsd - a.wastedUsd),
-    attribution: savingsAttribution(db, rules),
-  }));
+  // Default shape is unchanged for the Leaks tab, which needs every finding.
+  // rollup=1 returns the aggregate the landing screen needs — five causes
+  // instead of ~1,100 findings, a ~200x smaller payload.
+  app.get("/api/waste", (req) => {
+    const findings = runDetectors(db, rules).sort((a, b) => b.wastedUsd - a.wastedUsd);
+    if (req.query.rollup !== "1") {
+      return { findings, attribution: savingsAttribution(db, rules) };
+    }
+    const days = Number(req.query.days) || 30;
+    const now = new Date();
+    const from = new Date(now.getTime() - days * 86400e3).toISOString();
+    const spendUsd = db.prepare("SELECT SUM(cost_usd) c FROM turns WHERE ts >= ?").get(from).c || 0;
+    return rollupFindings(findings, { days, now, spendUsd });
+  });
   app.get("/api/ttl-advice", () => ttlAdvisor(db, rules));
   app.get("/api/interventions", () =>
     db.prepare(`SELECT i.*, (SELECT t.project FROM turns t WHERE t.session_id = i.session_id LIMIT 1) AS project

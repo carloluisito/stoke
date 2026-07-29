@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useApi, Empty, Badge } from "../components.jsx";
 import { Waterfall } from "../charts.jsx";
 import { go, sessionsHash } from "../router.js";
-import { money, dateShort, dayLabel, projectLabeler } from "../api.js";
+import { money, dateShort, dayLabel } from "../api.js";
+import { projectName } from "../lib/projectName.js";
 import { filterSessions as filter, sortSessions as sortRows } from "../sessionsFilter.js";
 
 const COLS = [
@@ -25,7 +26,6 @@ function SessionList({ query }) {
   const [sort, setSort] = useState({ key: "cost", dir: "desc" });
   const [range, setRange] = useState("7d");
   const [search, setSearch] = useState("");
-  const label = useMemo(() => projectLabeler((list || []).map((r) => r.project)), [list]);
 
   const rows = useMemo(() => {
     if (!list) return [];
@@ -53,7 +53,7 @@ function SessionList({ query }) {
         <select className="select" aria-label="Filter by project" value={query.project || "all"} onChange={(e) => setQ("project", e.target.value)}>
           <option value="all">All projects</option>
           {projects.map((p) => (
-            <option key={p} value={p}>{label(p)}</option>
+            <option key={p} value={p}>{projectName(p)}</option>
           ))}
         </select>
         <select className="select" aria-label="Filter by model" value={query.model || "all"} onChange={(e) => setQ("model", e.target.value)}>
@@ -111,7 +111,7 @@ function SessionList({ query }) {
                       }
                     }}
                   >
-                    <td><div className="mono" style={{ fontSize: 12, color: "var(--dim)" }} title={r.project}>{label(r.project)}</div></td>
+                    <td><div className="mono" style={{ fontSize: 12, color: "var(--dim)" }} title={r.project}>{projectName(r.project)}</div></td>
                     <td className="mono" style={{ fontSize: 12 }}>{r.model?.replace("claude-", "")}</td>
                     <td className="num faint">{dateShort(r.started || r.ended)}</td>
                     <td className="rt num">{r.turns}</td>

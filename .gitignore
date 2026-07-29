@@ -8,3 +8,6 @@ spike/
 .brain/
 .claude/
 .playwright-mcp/
+
+# Superpowers brainstorming (visual companion) artifacts
+.superpowers/

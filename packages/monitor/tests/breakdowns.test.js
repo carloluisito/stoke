@@ -63,3 +63,151 @@ describe("breakdowns", () => {
     expect(saved).toBeCloseTo(4000 / 1e6 * 4.5 + 1000 / 1e6 * 0.9, 8);
   });
 });
+
+// ── preventedSavings memoization ──────────────────────────────────────────────
+// /api/proxy measured 313ms and App.jsx polls it every 5s, because every call
+// re-read and JSON.parse'd all 47k+ proxy_events rows. These tests pin the memo
+// behaviour: one scan per (window, event-log state).
+
+import { preventedSavings, __resetSavingsMemo } from "../src/analytics/breakdowns.js";
+
+describe("preventedSavings memoization", () => {
+  // Minimal fake db exposing only what the function reads, plus a scan counter.
+  function makeDb(events) {
+    let nextId = 1;
+    const rows = events.map((e) => ({ id: nextId++, raw: JSON.stringify(e) }));
+    let scans = 0;
+    return {
+      scans: () => scans,
+      push(e) { rows.push({ id: nextId++, raw: JSON.stringify(e) }); },
+      prepare(sql) {
+        if (/MAX\(id\)/.test(sql)) {
+          return { get: () => ({ m: rows.length ? rows[rows.length - 1].id : null }) };
+        }
+        return {
+          all: () => { scans += 1; return rows.map((r) => ({ raw: r.raw })); },
+          get: () => ({ c: 0 }),
+        };
+      },
+    };
+  }
+
+  const ev = (ts) => ({ kind: "ping_fired", ts, sessionKey: "k", costUsd: 0.01 });
+
+  beforeEach(() => __resetSavingsMemo());
+
+  it("scans the event log only once for repeated identical calls", () => {
+    const db = makeDb([ev("2026-07-01T00:00:00.000Z")]);
+    preventedSavings(db, null, "2026-07-01");
+    preventedSavings(db, null, "2026-07-01");
+    preventedSavings(db, null, "2026-07-01");
+    expect(db.scans()).toBe(1);
+  });
+
+  it("returns the same value from cache", () => {
+    const db = makeDb([ev("2026-07-01T00:00:00.000Z")]);
+    const a = preventedSavings(db, null, "2026-07-01");
+    const b = preventedSavings(db, null, "2026-07-01");
+    expect(b).toEqual(a);
+  });
+
+  it("recomputes when a new proxy event lands", () => {
+    const db = makeDb([ev("2026-07-01T00:00:00.000Z")]);
+    preventedSavings(db, null, "2026-07-01");
+    db.push(ev("2026-07-01T00:10:00.000Z"));
+    preventedSavings(db, null, "2026-07-01");
+    expect(db.scans()).toBe(2);
+  });
+
+  it("caches each window separately", () => {
+    const db = makeDb([ev("2026-07-01T00:00:00.000Z")]);
+    preventedSavings(db, null, "2026-07-01");
+    preventedSavings(db, null, "2026-06-01");
+    expect(db.scans()).toBe(2);
+    preventedSavings(db, null, "2026-07-01");
+    expect(db.scans()).toBe(2); // still cached
+  });
+
+  // The subtlety that makes or breaks the memo: callers used to pass a fresh
+  // now.toISOString() as toTs, so a key including it would never hit.
+  it("treats an omitted toTs as open-ended and stable across calls", () => {
+    const db = makeDb([ev("2026-07-01T00:00:00.000Z")]);
+    preventedSavings(db, null, "2026-07-01", null);
+    preventedSavings(db, null, "2026-07-01");
+    expect(db.scans()).toBe(1);
+  });
+
+  it("still honours an explicit toTs bound", () => {
+    const db = makeDb([ev("2026-07-01T00:00:00.000Z")]);
+    const open = preventedSavings(db, null, "2026-07-01");
+    const bounded = preventedSavings(db, null, "2026-07-01", "2026-07-01T00:00:00.000Z");
+    expect(db.scans()).toBe(2);
+    expect(bounded).not.toBe(open); // distinct cache entries
+  });
+
+  it("handles an empty event log without scanning twice", () => {
+    const db = makeDb([]);
+    const a = preventedSavings(db, null, "2026-07-01");
+    preventedSavings(db, null, "2026-07-01");
+    expect(a.savedUsd).toBe(0);
+    expect(db.scans()).toBe(1);
+  });
+});
+
+// ── preventedByDay ────────────────────────────────────────────────────────────
+// Feeds the trend chart's third band, so stoke's value visibly accrues instead
+// of being a single number.
+
+import { preventedByDay } from "../src/analytics/breakdowns.js";
+
+describe("preventedByDay", () => {
+  // A real_request whose gap from its predecessor exceeds the TTL is a prevented
+  // rebuild; cache_read tokens are what would otherwise have been re-billed.
+  const req = (ts, cacheRead) => ({
+    kind: "real_request", ts, sessionKey: "s1",
+    model: "claude-sonnet-4-5", usage: { cache_read_input_tokens: cacheRead },
+  });
+
+  function makeDb(events) {
+    return {
+      prepare(sql) {
+        if (/MAX\(id\)/.test(sql)) return { get: () => ({ m: events.length }) };
+        return { all: () => events.map((e) => ({ raw: JSON.stringify(e) })), get: () => ({ c: 0 }) };
+      },
+    };
+  }
+
+  it("returns a bucket keyed by UTC day", () => {
+    const db = makeDb([
+      req("2026-07-20T10:00:00.000Z", 0),
+      req("2026-07-20T11:00:00.000Z", 500000), // 1h gap > 300s TTL -> prevented
+    ]);
+    const out = preventedByDay(db, null, 30, new Date("2026-07-21T00:00:00.000Z"));
+    expect(Object.keys(out)).toContain("2026-07-20");
+    expect(out["2026-07-20"]).toBeGreaterThan(0);
+  });
+
+  it("covers every day in the window, zero-filled", () => {
+    const db = makeDb([]);
+    const out = preventedByDay(db, null, 7, new Date("2026-07-21T00:00:00.000Z"));
+    expect(Object.keys(out)).toHaveLength(7);
+    for (const v of Object.values(out)) expect(v).toBe(0);
+  });
+
+  it("orders days oldest-first", () => {
+    const db = makeDb([]);
+    const keys = Object.keys(preventedByDay(db, null, 3, new Date("2026-07-21T00:00:00.000Z")));
+    expect(keys).toEqual(["2026-07-19", "2026-07-20", "2026-07-21"]);
+  });
+
+  it("never returns NaN or a negative bar", () => {
+    const db = makeDb([
+      { kind: "ping_fired", ts: "2026-07-20T10:00:00.000Z", sessionKey: "s1", costUsd: 5 },
+    ]);
+    const out = preventedByDay(db, null, 3, new Date("2026-07-21T00:00:00.000Z"));
+    for (const v of Object.values(out)) {
+      expect(Number.isNaN(v)).toBe(false);
+      expect(v).toBeGreaterThanOrEqual(0);
+    }
+  });
+});
