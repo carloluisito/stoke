@@ -266,14 +266,19 @@ the memoization:
 | Endpoint | p50 | Calls the proxy daemon? |
 |---|---|---|
 | `/api/cache`, `/api/sessions`, `/api/spend/projects` | 4–9 ms | no |
-| `/api/proxy`, `/api/overview` | 62–67 ms | yes |
-| proxy daemon's `/__stoke/stats`, called directly | 305–407 ms | — |
+| `/api/proxy`, `/api/overview` | 58–67 ms | yes |
+| proxy daemon's `/_stoke/stats`, called directly (HTTP 200) | 53–56 ms | — |
 
-`/api/proxy` went from 313 ms to ~62 ms, and the `preventedSavings` component of that went to
-effectively zero. The remaining ~60 ms is the loopback HTTP call to the proxy daemon for live
-state, which cannot be cached (that is the point of it being live).
+`/api/proxy` went from 313 ms to ~58 ms, and the `preventedSavings` component of that went to
+effectively zero. Essentially all of what remains is the single loopback HTTP call to the proxy
+daemon for live state, which cannot be cached — being live is its purpose.
 
-**Follow-up worth filing separately:** the proxy daemon's own `/__stoke/stats` takes 305–407 ms
-standalone. Every dashboard poll pays it, and the monitor only avoids the worst case because of
-its 500 ms `AbortSignal.timeout`. That is in `packages/proxy`, which this spec lists as
-non-scope, so it was not touched here.
+At ~55 ms on a 5-second poll that is roughly a 1% duty cycle: worth knowing, not worth acting
+on. No follow-up ticket recommended.
+
+> **Measurement note.** An earlier revision of this section claimed the stats endpoint took
+> 305–407 ms and recommended filing a performance ticket against `packages/proxy`. That was
+> wrong: the path was mistyped as `/__stoke/stats` (two underscores) instead of `/_stoke/stats`,
+> and the proxy forwards unrecognised paths upstream to `api.anthropic.com` — so the number
+> being timed was an internet round-trip returning 404, not the stats endpoint. Always check the
+> status code before trusting a latency figure from this proxy.
