@@ -253,6 +253,27 @@ tabs at 1440 px and 900 px in both themes.
 2. No screen exceeds ~2 viewports; no unpaginated list of more than 25 rows.
 3. Every dollar figure on the landing screen is attributable to stoke or explicitly labelled
    as the user's own spend. No borrowed credit.
-4. `/api/waste` landing payload under 5 KB.
-5. `/api/proxy` p50 under 20 ms on a warm cache.
+4. `/api/waste` landing payload under 5 KB. **Met** — 437,627 → 2,131 bytes.
+5. `preventedSavings()` costs ~0 on a warm cache. **Met** — 276.9 ms → 0.029 ms (9,577×).
 6. Zero jargon on level 1: no "TTL", "MTok", "cache write", "proxy", "attribution", "lever".
+
+### Criterion 5 was originally written wrong
+
+It first read *"`/api/proxy` p50 under 20 ms"*. That is not achievable by anything in this spec,
+and the number was set without checking where the endpoint's time actually goes. Measured after
+the memoization:
+
+| Endpoint | p50 | Calls the proxy daemon? |
+|---|---|---|
+| `/api/cache`, `/api/sessions`, `/api/spend/projects` | 4–9 ms | no |
+| `/api/proxy`, `/api/overview` | 62–67 ms | yes |
+| proxy daemon's `/__stoke/stats`, called directly | 305–407 ms | — |
+
+`/api/proxy` went from 313 ms to ~62 ms, and the `preventedSavings` component of that went to
+effectively zero. The remaining ~60 ms is the loopback HTTP call to the proxy daemon for live
+state, which cannot be cached (that is the point of it being live).
+
+**Follow-up worth filing separately:** the proxy daemon's own `/__stoke/stats` takes 305–407 ms
+standalone. Every dashboard poll pays it, and the monitor only avoids the worst case because of
+its 500 ms `AbortSignal.timeout`. That is in `packages/proxy`, which this spec lists as
+non-scope, so it was not touched here.
