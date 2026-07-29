@@ -13,29 +13,71 @@ export function pingSpendUsd(db, fromTs, toTs) {
   return r.c || 0;
 }
 
-/**
- * Rebuilds the proxy prevented in [fromTs, toTs], priced with the shared
- * savings math over the full proxy event log (predecessor lookups must span
- * the whole log, so we window inside computeSavings, not in SQL).
- */
-export function preventedSavings(db, rules, fromTs, toTs) {
+// Recomputing this means reading and JSON.parse-ing the entire proxy event log
+// (47k+ rows on a two-month-old install, measured at 180ms). The dashboard polls
+// /api/proxy every 5s, so without a memo that cost is paid continuously and
+// grows forever. The answer only changes when a new proxy event lands, so
+// MAX(id) is a sound invalidation key.
+//
+// An open-ended window (toTs = null) is the common case and must key stably:
+// callers used to pass a fresh now.toISOString() every time, which would defeat
+// the cache entirely.
+const OPEN_END = "9999-12-31T23:59:59.999Z";
+let memoMaxId = null;
+const memo = new Map();
+
+/** Test hook — the memo is module state, so tests must be able to clear it. */
+export function __resetSavingsMemo() {
+  memoMaxId = null;
+  memo.clear();
+}
+
+/** Parse and cache the event log itself, so concurrent windows share one scan. */
+function loadProxyEvents(db) {
   const rows = db.prepare("SELECT raw FROM proxy_events ORDER BY ts").all();
   const events = [];
   for (const r of rows) {
     try { events.push(JSON.parse(r.raw)); } catch { /* skip torn rows */ }
   }
-  const cfg = {
+  return events;
+}
+
+function savingsConfig(rules) {
+  return {
     cacheTtlSeconds: 300,
     pricing: { cacheReadMultiplier: 0.1, rebuildMultiplier: 1.25, rebuildMultiplier1h: 2.0 },
     modelPricing: defaultModelPricingMap(rules ?? loadPricing(), new Date().toISOString()),
   };
-  const s = computeSavings(events, cfg, Date.parse(fromTs), Date.parse(toTs));
-  return {
+}
+
+/**
+ * Rebuilds the proxy prevented in [fromTs, toTs], priced with the shared
+ * savings math over the full proxy event log (predecessor lookups must span
+ * the whole log, so we window inside computeSavings, not in SQL).
+ *
+ * @param {string} fromTs inclusive ISO lower bound
+ * @param {string|null} toTs inclusive ISO upper bound; null = up to the latest event
+ */
+export function preventedSavings(db, rules, fromTs, toTs = null) {
+  const maxId = db.prepare("SELECT MAX(id) m FROM proxy_events").get().m ?? 0;
+  if (maxId !== memoMaxId) {
+    memo.clear();
+    memoMaxId = maxId;
+  }
+  const end = toTs ?? OPEN_END;
+  const key = fromTs + "|" + end;
+  const hit = memo.get(key);
+  if (hit) return hit;
+
+  const s = computeSavings(loadProxyEvents(db), savingsConfig(rules), Date.parse(fromTs), Date.parse(end));
+  const out = {
     savedUsd: s.savedUsd,
     rebuildsAvoided: s.rebuildsAvoided,
     pingSpendUsd: s.pingSpendUsd,
     netSavedUsd: s.netSavedUsd,
   };
+  memo.set(key, out);
+  return out;
 }
 
 /**
@@ -44,9 +86,9 @@ export function preventedSavings(db, rules, fromTs, toTs) {
  */
 export function netCost(db, rules, now = new Date()) {
   const dayStart = now.toISOString().slice(0, 10);
-  const nowIso = now.toISOString();
   const spend = db.prepare("SELECT SUM(cost_usd) c FROM turns WHERE ts >= ?").get(dayStart).c || 0;
-  const prevented = preventedSavings(db, rules, dayStart, nowIso);
+  // Open-ended: passing a moving `now` would make the memo key change per call.
+  const prevented = preventedSavings(db, rules, dayStart);
   return {
     spendUsd: spend,
     pingSpendUsd: prevented.pingSpendUsd,
@@ -59,7 +101,6 @@ export function netCost(db, rules, now = new Date()) {
 /** Aggregates for the dashboard's Proxy page. */
 export function proxySummary(db, rules, now = new Date()) {
   const dayStart = now.toISOString().slice(0, 10);
-  const nowIso = now.toISOString();
   const counts = Object.fromEntries(
     db.prepare("SELECT kind, COUNT(*) n FROM proxy_events WHERE ts >= ? GROUP BY kind").all(dayStart)
       .map(r => [r.kind, r.n]),
@@ -71,7 +112,7 @@ export function proxySummary(db, rules, now = new Date()) {
     .filter(Boolean);
   return {
     today: {
-      ...preventedSavings(db, rules, dayStart, nowIso),
+      ...preventedSavings(db, rules, dayStart),
       pingsFired: counts.ping_fired || 0,
       pingsSkipped: counts.ping_skipped || 0,
       proxyStarts: counts.proxy_started || 0,

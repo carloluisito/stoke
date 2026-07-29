@@ -63,3 +63,93 @@ describe("breakdowns", () => {
     expect(saved).toBeCloseTo(4000 / 1e6 * 4.5 + 1000 / 1e6 * 0.9, 8);
   });
 });
+
+// ── preventedSavings memoization ──────────────────────────────────────────────
+// /api/proxy measured 313ms and App.jsx polls it every 5s, because every call
+// re-read and JSON.parse'd all 47k+ proxy_events rows. These tests pin the memo
+// behaviour: one scan per (window, event-log state).
+
+import { preventedSavings, __resetSavingsMemo } from "../src/analytics/breakdowns.js";
+
+describe("preventedSavings memoization", () => {
+  // Minimal fake db exposing only what the function reads, plus a scan counter.
+  function makeDb(events) {
+    let nextId = 1;
+    const rows = events.map((e) => ({ id: nextId++, raw: JSON.stringify(e) }));
+    let scans = 0;
+    return {
+      scans: () => scans,
+      push(e) { rows.push({ id: nextId++, raw: JSON.stringify(e) }); },
+      prepare(sql) {
+        if (/MAX\(id\)/.test(sql)) {
+          return { get: () => ({ m: rows.length ? rows[rows.length - 1].id : null }) };
+        }
+        return {
+          all: () => { scans += 1; return rows.map((r) => ({ raw: r.raw })); },
+          get: () => ({ c: 0 }),
+        };
+      },
+    };
+  }
+
+  const ev = (ts) => ({ kind: "ping_fired", ts, sessionKey: "k", costUsd: 0.01 });
+
+  beforeEach(() => __resetSavingsMemo());
+
+  it("scans the event log only once for repeated identical calls", () => {
+    const db = makeDb([ev("2026-07-01T00:00:00.000Z")]);
+    preventedSavings(db, null, "2026-07-01");
+    preventedSavings(db, null, "2026-07-01");
+    preventedSavings(db, null, "2026-07-01");
+    expect(db.scans()).toBe(1);
+  });
+
+  it("returns the same value from cache", () => {
+    const db = makeDb([ev("2026-07-01T00:00:00.000Z")]);
+    const a = preventedSavings(db, null, "2026-07-01");
+    const b = preventedSavings(db, null, "2026-07-01");
+    expect(b).toEqual(a);
+  });
+
+  it("recomputes when a new proxy event lands", () => {
+    const db = makeDb([ev("2026-07-01T00:00:00.000Z")]);
+    preventedSavings(db, null, "2026-07-01");
+    db.push(ev("2026-07-01T00:10:00.000Z"));
+    preventedSavings(db, null, "2026-07-01");
+    expect(db.scans()).toBe(2);
+  });
+
+  it("caches each window separately", () => {
+    const db = makeDb([ev("2026-07-01T00:00:00.000Z")]);
+    preventedSavings(db, null, "2026-07-01");
+    preventedSavings(db, null, "2026-06-01");
+    expect(db.scans()).toBe(2);
+    preventedSavings(db, null, "2026-07-01");
+    expect(db.scans()).toBe(2); // still cached
+  });
+
+  // The subtlety that makes or breaks the memo: callers used to pass a fresh
+  // now.toISOString() as toTs, so a key including it would never hit.
+  it("treats an omitted toTs as open-ended and stable across calls", () => {
+    const db = makeDb([ev("2026-07-01T00:00:00.000Z")]);
+    preventedSavings(db, null, "2026-07-01", null);
+    preventedSavings(db, null, "2026-07-01");
+    expect(db.scans()).toBe(1);
+  });
+
+  it("still honours an explicit toTs bound", () => {
+    const db = makeDb([ev("2026-07-01T00:00:00.000Z")]);
+    const open = preventedSavings(db, null, "2026-07-01");
+    const bounded = preventedSavings(db, null, "2026-07-01", "2026-07-01T00:00:00.000Z");
+    expect(db.scans()).toBe(2);
+    expect(bounded).not.toBe(open); // distinct cache entries
+  });
+
+  it("handles an empty event log without scanning twice", () => {
+    const db = makeDb([]);
+    const a = preventedSavings(db, null, "2026-07-01");
+    preventedSavings(db, null, "2026-07-01");
+    expect(a.savedUsd).toBe(0);
+    expect(db.scans()).toBe(1);
+  });
+});
