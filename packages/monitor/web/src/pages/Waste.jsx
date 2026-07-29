@@ -3,7 +3,7 @@ import { useApi, Empty, Badge } from "../components.jsx";
 import { go } from "../router.js";
 import { money, dateShort, typeLabel, typeBadge } from "../api.js";
 import { projectName } from "../lib/projectName.js";
-import { causeFor, fixLabel } from "../lib/causes.js";
+import { causeFor, fixLabel, interventionCopy, KIND_BADGE } from "../lib/causes.js";
 
 // Success criterion: no unpaginated list longer than this.
 const PAGE = 25;
@@ -199,27 +199,81 @@ function Findings() {
   );
 }
 
+// Where the levers and size limits actually live, so the obvious next question
+// ("how do I change this?") is answered on the screen that raises it.
+const CONFIG_PATH = "~/.stoke/config.json";
+
 function Log() {
   const { data: interventions } = useApi("/interventions");
+  const [showAll, setShowAll] = useState(false);
+  const [showRoutine, setShowRoutine] = useState(false);
+
   if (!interventions) return <div className="card"><div className="skel" style={{ width: "100%", height: 160 }} /></div>;
-  const badge = (mode) => (mode === "enforce" ? "b-crit" : mode === "warn" ? "b-warn" : "b-accent");
-  if (!interventions.length) return <Empty title="stoke hasn't had to step in">No warnings, blocks or model switches have been needed yet.</Empty>;
+
+  // Translate first, then filter: whether a row is routine depends on what the
+  // message says, not which lever wrote it (see interventionCopy).
+  const all = interventions.map((i) => ({ ...i, copy: interventionCopy(i.lever, i.message, i.mode) }));
+  const steps = all.filter((i) => !i.copy.routine);
+  const routineCount = all.length - steps.length;
+  const list = showRoutine ? all : steps;
+  const rows = showAll ? list : list.slice(0, PAGE);
+  const hidden = list.length - rows.length;
+
+  if (!list.length) {
+    return (
+      <Empty title="stoke hasn&apos;t had to step in">
+        No warnings, blocks or nudges have been needed yet.
+      </Empty>
+    );
+  }
+
   return (
     <>
-      <div className="pagesub mb14">Every time stoke stepped in — a warning, a block, or a move to a cheaper model.</div>
+      <div className="pagesub mb14">
+        Every time stoke stepped in — a warning, a block, or a nudge to work more cheaply.
+        {" "}All of it is automatic. To switch any of it off, or change the size limits, edit{" "}
+        <span className="mono">{CONFIG_PATH}</span>.
+      </div>
+
+      {routineCount > 0 && (
+        <div className="filterbar mb14">
+          <button className={`chipbtn ${showRoutine ? "on" : ""}`} onClick={() => setShowRoutine(!showRoutine)}>
+            {showRoutine ? "Hide" : "Show"} {routineCount} routine record{routineCount === 1 ? "" : "s"}
+          </button>
+          <span className="faint" style={{ fontSize: 11.5 }}>
+            every session start and session cost note — same thing every time
+          </span>
+        </div>
+      )}
+
       <div className="card pad0">
-        {interventions.map((i, idx) => (
-          <div key={idx} className="attr" style={{ gridTemplateColumns: "auto 1fr auto", padding: "14px 16px" }}>
-            <Badge cls={badge(i.mode)}>{i.mode}</Badge>
-            <div>
-              <div style={{ fontWeight: 600 }}>{i.message}</div>
-              <div className="faint" style={{ fontSize: 11.5, marginTop: 3 }}>
-                {fixLabel(i.lever)} · <span className="mono">{projectName(i.project)}</span>
+        {rows.map((i, idx) => {
+          const c = i.copy;
+          return (
+            <div key={idx} className="attr" style={{ gridTemplateColumns: "auto 1fr auto", padding: "14px 16px", alignItems: "start" }}>
+              <Badge cls={KIND_BADGE[c.kind] || "b-dim"}>{c.kind}</Badge>
+              <div>
+                <div style={{ fontWeight: 600 }}>{c.title}</div>
+                {c.detail && <div style={{ fontSize: 12.5, color: "var(--dim)", marginTop: 3, maxWidth: 620 }}>{c.detail}</div>}
+                <div className="faint" style={{ fontSize: 11.5, marginTop: 4 }} title={i.message}>
+                  {fixLabel(i.lever)} · <span className="mono">{projectName(i.project)}</span>
+                </div>
               </div>
+              <span className="num faint" style={{ fontSize: 12 }}>{dateShort(i.ts)}</span>
             </div>
-            <span className="num faint" style={{ fontSize: 12 }}>{dateShort(i.ts)}</span>
+          );
+        })}
+        {hidden > 0 && (
+          <div className="morelink" style={{ padding: "12px 16px", borderTop: "1px solid var(--border)", margin: 0 }}>
+            Showing the {rows.length} most recent of {list.length}.{" "}
+            <button onClick={() => setShowAll(true)}>Show all {list.length} →</button>
           </div>
-        ))}
+        )}
+        {showAll && list.length > PAGE && (
+          <div className="morelink" style={{ padding: "12px 16px", borderTop: "1px solid var(--border)", margin: 0 }}>
+            <button onClick={() => setShowAll(false)}>Show only the {PAGE} most recent</button>
+          </div>
+        )}
       </div>
     </>
   );
