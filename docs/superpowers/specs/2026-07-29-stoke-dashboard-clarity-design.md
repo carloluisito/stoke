@@ -160,9 +160,18 @@ home/LiveNow.jsx          warm sessions + countdowns
 home/Trend.jsx            daily bars, avoidable + prevented series
 
 lib/causes.js             type → { title, why, fix, route }   ← plain-English taxonomy
-lib/rollup.js             findings[] → causes + project totals  (pure)
 lib/projectName.js        C--Users-…-omnidesk → personal/omnidesk  (pure)
 ```
+
+Aggregation runs where the data lives, not in the browser:
+
+```
+src/analytics/rollup.js   findings[] + window → { causes, byProject }  (pure, server-side)
+```
+
+The server aggregates and emits raw `type` / `project` keys; the client owns presentation
+(`causes.js` supplies the copy, `projectName.js` the readable name). This keeps C1's payload
+small without duplicating the grouping logic in two places.
 
 `lib/projectName.js` resolves an existing duplication: `projectLabeler` (`api.js`) and
 `shortPath` (`Proxy.jsx`) are two implementations of the same idea and neither yields a
