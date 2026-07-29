@@ -3,14 +3,19 @@ import { useApi, Stat, Badge } from "../components.jsx";
 import { BudgetBar } from "../charts.jsx";
 import { sessionCountdown } from "../live.js";
 import { money, pct, tok, mmss, clock, verdictLabel, evColor } from "../api.js";
+import { projectName } from "../lib/projectName.js";
 
-const shortPath = (p) => (p ? p.split(/[\\/]/).slice(-2).join("/") : "unknown");
+const isActive = (s) => s.cacheStatus === "warm" || s.cacheStatus === "paused";
 const statusBadgeCls = (s) =>
   s === "warm" ? "b-good" : s === "paused" ? "b-warn" : "b-dim";
 
 export default function Proxy({ proxy, now, lastPollAt, events }) {
   const { data: cache } = useApi("/cache");
   const { data: ttl } = useApi("/ttl-advice");
+  // Finished sessions are the majority (16 of 22 on a typical day) and carry no
+  // countdown and no savings, so they start collapsed.
+  const [showInactive, setShowInactive] = React.useState(false);
+  const [showNoChange, setShowNoChange] = React.useState(false);
 
   if (!proxy) {
     return (
@@ -84,14 +89,14 @@ export default function Proxy({ proxy, now, lastPollAt, events }) {
             <div>
               <div className="klabel mb14">Live sessions — countdown to next cache ping</div>
               <div className="grid" style={{ gap: 12 }}>
-                {(live.sessions || []).map((s) => {
+                {(live.sessions || []).filter((s) => showInactive || isActive(s)).map((s) => {
                   const cd = sessionCountdown(s, now, lastPollAt);
                   const idle = (s.idleSec || 0) + Math.max(0, (now - lastPollAt) / 1000);
                   return (
                     <div key={s.key} className={`livecard ${s.cacheStatus}`}>
                       <div className="fx" style={{ alignItems: "center", justifyContent: "space-between", gap: 10 }}>
                         <div>
-                          <div style={{ fontWeight: 600 }} className="mono">{shortPath(s.projectPath)}</div>
+                          <div style={{ fontWeight: 600 }} className="mono">{projectName(s.projectPath)}</div>
                           <div className="faint" style={{ fontSize: 11.5, marginTop: 2 }}>
                             {s.model?.replace("claude-", "")} · idle {mmss(idle)} · {s.pingCount5h ?? 0} pings/5h
                           </div>
@@ -118,6 +123,17 @@ export default function Proxy({ proxy, now, lastPollAt, events }) {
                 {(live.sessions || []).length === 0 && (
                   <div className="empty">No sessions tracked yet — start a Claude Code conversation through the proxy.</div>
                 )}
+                {(() => {
+                  const dead = (live.sessions || []).filter((s) => !isActive(s)).length;
+                  if (!dead) return null;
+                  return (
+                    <div className="morelink">
+                      <button onClick={() => setShowInactive((v) => !v)}>
+                        {showInactive ? "Hide" : "Show"} {dead} finished session{dead === 1 ? "" : "s"}
+                      </button>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
 
@@ -131,7 +147,7 @@ export default function Proxy({ proxy, now, lastPollAt, events }) {
                         <span className="evdot" style={{ background: evColor(e.kind) }} />
                         <div>
                           <div>{e.text}</div>
-                          <div className="faint mono" style={{ fontSize: 11 }}>{shortPath(e.project)}</div>
+                          <div className="faint mono" style={{ fontSize: 11 }}>{projectName(e.project)}</div>
                         </div>
                         <span className="evtime num">{clock(e.ts)}</span>
                       </div>
@@ -142,23 +158,53 @@ export default function Proxy({ proxy, now, lastPollAt, events }) {
                 </div>
               </div>
 
-              <div className="klabel mb14 mt20">TTL advice by project</div>
+              <div className="klabel mb14 mt20">Cache setting by project</div>
               <div className="card pad0">
-                {(ttl || []).map((a, i) => (
-                  <div key={i} className="attr" style={{ padding: "12px 16px", gridTemplateColumns: "1fr auto" }}>
-                    <div>
-                      <div className="mono" style={{ fontWeight: 600 }}>{a.project}</div>
-                      <div className="faint" style={{ fontSize: 11.5, marginTop: 3 }}>{a.reasoning}</div>
-                    </div>
-                    <div style={{ textAlign: "right" }}>
-                      <Badge cls={a.verdict === "keep" ? "b-dim" : a.monthlyDeltaUsd > 0 ? "b-good" : "b-accent"}>{verdictLabel(a.verdict)}</Badge>
-                      <div className="num" style={{ fontSize: 12, marginTop: 5, color: "var(--dim)" }}>
-                        {a.monthlyDeltaUsd === 0 ? "no change" : `${a.monthlyDeltaUsd > 0 ? "save " : "cost "}${money(Math.abs(a.monthlyDeltaUsd))}/mo`}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-                {(ttl || []).length === 0 && <div style={{ padding: 16, color: "var(--dim)", fontSize: 12.5 }}>No TTL advice yet.</div>}
+                {(() => {
+                  const rows = ttl || [];
+                  // A row that says "switch" and then "no change" is advice that
+                  // contradicts itself — 20 of 28 read that way. Only rows with a
+                  // real saving are actionable; the rest collapse to a count.
+                  const actionable = rows.filter((a) => a.verdict !== "keep" && a.monthlyDeltaUsd > 0);
+                  const rest = rows.length - actionable.length;
+                  const visible = showNoChange ? rows : actionable;
+                  return (
+                    <>
+                      {visible.map((a, i) => {
+                        const worth = a.verdict !== "keep" && a.monthlyDeltaUsd > 0;
+                        return (
+                          <div key={i} className="attr" style={{ padding: "12px 16px", gridTemplateColumns: "1fr auto" }}>
+                            <div>
+                              <div className="mono" style={{ fontWeight: 600 }}>{projectName(a.project)}</div>
+                              <div className="faint" style={{ fontSize: 11.5, marginTop: 3 }}>{a.reasoning}</div>
+                            </div>
+                            <div style={{ textAlign: "right" }}>
+                              <Badge cls={worth ? "b-good" : "b-dim"}>{worth ? verdictLabel(a.verdict) : "Leave as is"}</Badge>
+                              <div className="num" style={{ fontSize: 12, marginTop: 5, color: "var(--dim)" }}>
+                                {worth ? `save ${money(a.monthlyDeltaUsd)}/mo` : "no change"}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {!rows.length && (
+                        <div style={{ padding: 16, color: "var(--dim)", fontSize: 12.5 }}>No advice yet.</div>
+                      )}
+                      {rows.length > 0 && !actionable.length && !showNoChange && (
+                        <div style={{ padding: 16, color: "var(--dim)", fontSize: 12.5 }}>
+                          Every project is already on the right cache setting.
+                        </div>
+                      )}
+                      {rest > 0 && (
+                        <div className="morelink" style={{ padding: "10px 16px" }}>
+                          <button onClick={() => setShowNoChange((v) => !v)}>
+                            {showNoChange ? "Hide" : "Show"} {rest} project{rest === 1 ? "" : "s"} that need no change
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
             </div>
           </div>
@@ -174,8 +220,8 @@ function Head() {
   return (
     <div className="hr">
       <div>
-        <div className="pagetitle">Proxy</div>
-        <div className="pagesub">Cache keep-alive engine · live sessions and event stream</div>
+        <div className="pagetitle">Keep-alive</div>
+        <div className="pagesub">How stoke holds your cache open between messages</div>
       </div>
     </div>
   );

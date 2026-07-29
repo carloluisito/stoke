@@ -99,15 +99,6 @@ export const evColor = (k) =>
     real_request: "var(--dim)",
   }[k] || "var(--dim)");
 
-// Projects are path-encoded dirs ("C--Users-me-Desktop-work-my-app"). Strip the
-// longest common prefix across all projects so only the distinguishing tail shows.
-export function projectLabeler(projects) {
-  const names = [...new Set(projects)];
-  if (names.length < 2) return (p) => p;
-  let lcp = names[0];
-  for (const n of names) {
-    while (!n.startsWith(lcp)) lcp = lcp.slice(0, -1);
-  }
-  const cut = lcp.lastIndexOf("-") + 1; // cut at a segment boundary
-  return (p) => p.slice(cut) || p;
-}
+// Project name formatting lives in lib/projectName.js — one implementation used
+// by every page. projectLabeler() used to live here (longest-common-prefix over
+// the visible set, so a name changed depending on which rows were loaded).

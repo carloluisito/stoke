@@ -41,6 +41,23 @@ export const CAUSES = {
 
 export const KNOWN_TYPES = Object.keys(CAUSES);
 
+// The automatic fixes stoke applies, keyed by the internal lever id the
+// attribution table reports. Same reasoning as CAUSES: "efficiency_conventions"
+// is an implementation detail, not something a reader can act on.
+const FIXES = {
+  cache_expiry_warning: "Warns you before the cache goes cold",
+  context_bloat_warning: "Warns you when a session gets too large",
+  bloat_hard_gate: "Blocks a session that is past the safe context size",
+  efficiency_conventions: "Injects the cost-saving conventions into each session",
+  session_cost_record: "Records what each session cost",
+  model_downshift: "Moves mechanical work to a cheaper model",
+};
+
+/** Plain-language name for an optimizer lever; falls back to the raw id. */
+export function fixLabel(lever) {
+  return FIXES[lever] || lever;
+}
+
 /**
  * Never returns undefined — an unrecognised type still renders something honest
  * rather than a blank card. A new detector added server-side will show up here
