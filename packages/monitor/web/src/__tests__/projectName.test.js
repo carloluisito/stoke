@@ -43,6 +43,30 @@ describe("projectName", () => {
       .toMatch(/^personal\/omnidesk/);
   });
 
+  // Regression: the proxy's live-session feed already sends shortened labels.
+  // An earlier version re-truncated them, so "personal/agent-sandbox" became
+  // "agent/sandbox" and five concurrent sessions rendered identically.
+  it("is idempotent — an already-short label passes through unchanged", () => {
+    for (const already of [
+      "personal/agent-sandbox",
+      "work/resto-backend",
+      "personal/windlass-lms",
+      "ispade",
+      "ispade/api",
+      "work/project-home",
+    ]) {
+      expect(projectName(already), already).toBe(already);
+      // and applying it twice changes nothing
+      expect(projectName(projectName(already)), already).toBe(already);
+    }
+  });
+
+  it("applying it twice to a raw path is stable", () => {
+    const raw = "C--Users-carlo-Desktop-repositories-personal-omnidesk";
+    const once = projectName(raw);
+    expect(projectName(once)).toBe(once);
+  });
+
   it("never yields 'unknown' for any real project path", () => {
     const real = [
       "C--Users-carlo-Desktop-repositories-work-project-home",

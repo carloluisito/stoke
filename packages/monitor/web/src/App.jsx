@@ -4,23 +4,25 @@ import { useHashRoute, go } from "./router.js";
 import { initialTheme, applyTheme } from "./theme.js";
 import { useLiveness } from "./live.js";
 import { agoStr } from "./api.js";
-import Overview from "./pages/Overview.jsx";
+import Home from "./pages/Home.jsx";
 import Sessions from "./pages/Sessions.jsx";
 import Proxy from "./pages/Proxy.jsx";
 import Waste from "./pages/Waste.jsx";
 
+// Labels are plain English; the route ids are frozen so existing deep links and
+// bookmarks keep working ("proxy" is jargon, but #proxy is a URL).
 const TABS = [
-  ["overview", "Overview"],
+  ["overview", "Home"],
+  ["waste", "Leaks"],
   ["sessions", "Sessions"],
-  ["proxy", "Proxy"],
-  ["waste", "Waste"],
+  ["proxy", "Keep-alive"],
 ];
 
 export default function App() {
   const route = useHashRoute();
   const [theme, setTheme] = useState(initialTheme);
   // App-level proxy poll (fast) — feeds the header pill, liveness and both the
-  // Overview and Proxy pages, so nothing double-polls.
+  // Home and Keep-alive pages, so nothing double-polls.
   const { data: proxy } = useApi("/proxy", { refreshMs: 5000 });
   const { now, lastPollAt, events, toasts, dismissToast } = useLiveness(proxy);
 
@@ -51,7 +53,7 @@ export default function App() {
     <div className="app">
       <header className="hdr">
         <div className="brand">
-          stoke<span className="brandsub">cache keep-alive</span>
+          stoke<span className="brandsub">keeps your Claude Code bill down</span>
         </div>
         <nav className="navtabs" role="tablist" aria-label="Dashboard views">
           {TABS.map(([id, label], i) => {
@@ -94,7 +96,7 @@ export default function App() {
       </header>
 
       <main>
-        {route.tab === "overview" && <Overview proxy={proxy} />}
+        {route.tab === "overview" && <Home proxy={proxy} now={now} lastPollAt={lastPollAt} />}
         {route.tab === "sessions" && <Sessions route={route} />}
         {route.tab === "proxy" && (
           <Proxy proxy={proxy} now={now} lastPollAt={lastPollAt} events={events} />

@@ -67,8 +67,8 @@ export default function Proxy({ proxy, now, lastPollAt, events }) {
           </div>
           <div className="dim" style={{ marginTop: 10, fontSize: 13.5, lineHeight: 1.6, maxWidth: 640 }}>
             The keep-alive proxy is unreachable, so no cache pings are firing and rebuilds are no longer being
-            prevented. <strong style={{ color: "var(--text)" }}>Spend tracking still works</strong> — Overview,
-            Sessions and Waste remain accurate. Start it with <code>stoke start</code> to resume keep-alive.
+            prevented. <strong style={{ color: "var(--text)" }}>Spend tracking still works</strong> — Home,
+            Leaks and Sessions remain accurate. Start it with <code>stoke start</code> to resume keep-alive.
           </div>
         </div>
       ) : (

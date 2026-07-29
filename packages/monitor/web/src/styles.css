@@ -150,3 +150,66 @@ main{flex:1;max-width:1180px;width:100%;margin:0 auto;padding:26px 26px 80px}
 .attr{display:grid;grid-template-columns:1fr auto auto;gap:8px 18px;align-items:center;padding:11px 0;border-bottom:1px solid var(--border);font-size:13px}
 .fx{display:flex}
 .mb18{margin-bottom:18px}.mb14{margin-bottom:14px}.mt20{margin-top:20px}.mt14{margin-top:14px}.mt10{margin-top:10px}
+
+/* ===== landing screen (Home) ===== */
+.seclabel{font-size:10.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin:26px 0 10px;display:flex;align-items:baseline;gap:9px}
+.seclabel .q{color:var(--accent);font-weight:700}
+.answer{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px 26px;box-shadow:var(--shadow)}
+.sentence{font-size:25px;line-height:1.42;letter-spacing:-.015em;max-width:42ch}
+.sentence b{font-weight:600;font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:30px;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.sentence .leak{color:var(--serious)}
+.sentence small{display:block;font-size:13px;color:var(--dim);margin-top:12px;letter-spacing:0}
+.propbar{margin-top:20px;height:11px;border-radius:6px;overflow:hidden;display:flex;background:var(--surface2);border:1px solid var(--border)}
+.propbar i{display:block;height:100%}
+.proplegend{display:flex;gap:18px;margin-top:9px;font-size:11.5px;color:var(--dim);flex-wrap:wrap}
+.proplegend b{font-weight:600;color:var(--text)}
+.sw{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.working{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--good);border-radius:0 var(--radius) var(--radius) 0;padding:15px 18px;margin-top:12px}
+.working.off{border-left-color:var(--faint)}
+.wtitle{font-weight:600;font-size:13.5px;display:flex;align-items:center;gap:8px}
+.wsub{font-size:12.5px;color:var(--dim);margin-top:7px;line-height:1.55}
+.wsince{font-size:12px;color:var(--dim);margin-top:8px;padding-top:8px;border-top:1px solid var(--border)}
+.cause{display:grid;grid-template-columns:78px 1fr auto;gap:16px;align-items:start;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:15px 17px;margin-bottom:9px;width:100%;text-align:left;font:inherit;color:inherit;cursor:pointer;transition:border-color .16s}
+.cause:hover{border-color:var(--border2)}
+.camt{font-family:'IBM Plex Mono',ui-monospace,monospace;font-weight:600;font-size:19px;letter-spacing:-.02em;text-align:right;color:var(--serious);font-variant-numeric:tabular-nums}
+.ccount{font-size:10.5px;color:var(--faint);text-align:right;margin-top:3px;font-family:'IBM Plex Mono',ui-monospace,monospace}
+.cname{font-weight:600;font-size:14px}
+.cwhy{font-size:12.5px;color:var(--dim);margin-top:4px;line-height:1.5;max-width:58ch}
+.cworst{font-size:10.5px;color:var(--faint);margin-top:6px;font-family:'IBM Plex Mono',ui-monospace,monospace}
+.cfix{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--accent);background:var(--accent-weak);border:1px solid color-mix(in srgb,var(--accent) 25%,transparent);padding:6px 11px;border-radius:8px;white-space:nowrap}
+.prow{display:grid;grid-template-columns:190px 1fr 68px;gap:12px;align-items:center;padding:8px 0}
+.pname{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ptrack{height:8px;background:var(--surface2);border-radius:5px;overflow:hidden}
+.ptrack i{height:100%;display:block;background:var(--serious)}
+.pamt{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12.5px;text-align:right;font-weight:600;font-variant-numeric:tabular-nums}
+.morelink{font-size:12px;color:var(--dim);margin-top:11px}
+.morelink button{appearance:none;border:0;background:none;font:inherit;color:var(--accent);cursor:pointer;border-bottom:1px dashed color-mix(in srgb,var(--accent) 50%,transparent);padding:0}
+.morelink button:hover{color:var(--text);border-bottom-color:var(--border2)}
+.explainer{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;background:var(--surface2);border:1px solid var(--border);border-radius:11px;padding:12px 14px;margin-bottom:18px;font-size:13px;color:var(--dim);line-height:1.55}
+.explainer button{appearance:none;border:0;background:none;color:var(--faint);cursor:pointer;font-size:15px;line-height:1;padding:0 2px;flex:none}
+.explainer button:hover{color:var(--text)}
+.tbars{display:flex;align-items:flex-end;gap:3px;height:96px;margin-top:6px}
+.tcol{flex:1;display:flex;flex-direction:column;justify-content:flex-end;gap:1px;min-width:0;appearance:none;border:0;background:none;padding:0;cursor:pointer}
+.tcol i{display:block;border-radius:1px;transition:opacity .16s}
+.tcol:hover i{opacity:.72}
+.tcol .avoid{background:var(--serious)}
+.tcol .rest{background:color-mix(in srgb,var(--text) 22%,transparent)}
+.tcol .prev{background:var(--good)}
+.tx{display:flex;justify-content:space-between;font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:10px;color:var(--faint);margin-top:6px}
+@media(max-width:760px){
+  .cause{grid-template-columns:66px 1fr}
+  .cause .cfix{grid-column:2;justify-self:start;margin-top:4px}
+  .prow{grid-template-columns:120px 1fr 62px}
+  .sentence{font-size:21px}
+  .sentence b{font-size:25px}
+}
+
+/* Header gets cramped once the tab bar has four plain-English labels — drop the
+   tagline and the freshness chip before anything wraps. */
+@media(max-width:1040px){
+  .brandsub{display:none}
+}
+@media(max-width:960px){
+  .hdr{padding:12px 18px;gap:10px}
+  .hdr .chip{display:none}
+}

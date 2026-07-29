@@ -7,46 +7,43 @@
 // This is the ONE name formatter. It replaced two partial implementations:
 // projectLabeler() in api.js (longest-common-prefix, produced a bare tail) and
 // shortPath() in Proxy.jsx (last two path segments, left "-" runs mangled).
-
-// Container directories that projects live *inside*. Everything after the
-// deepest one of these is the meaningful part of the path.
 //
-// Only container words belong here — NOT "home" or "users". An earlier version
-// treated those as strippable anywhere in the path, which silently turned
-// "...repositories-work-project-home" into "unknown", because the project was
-// literally named "project-home".
-const ANCHORS = new Set([
+// MUST BE IDEMPOTENT. The proxy's live-session feed already sends shortened
+// labels like "personal/agent-sandbox", and an earlier version re-truncated
+// those to "agent/sandbox" — five concurrent sessions all rendered as the same
+// meaningless label. Anything with no scaffolding left in it is returned as-is.
+
+// Path scaffolding: drive letters, user dirs and the container dirs projects
+// live inside. Everything after the LAST of these is the meaningful part.
+//
+// "home" is deliberately absent — it only counts as scaffolding in a leading
+// position (see LEADING_ONLY). Treating it as scaffolding anywhere turned the
+// real project "work-project-home" into "unknown".
+const SCAFFOLD = new Set([
+  "c", "d", "e", "f", "users", "desktop", "documents", "mnt", "var",
   "repositories", "repos", "code", "projects", "workspace", "git", "src", "dev",
 ]);
 
-// Leading path scaffolding — only ever stripped from the *front*, and only when
-// no anchor was found.
-const LEADING_NOISE = new Set([
-  "c", "d", "e", "f", "users", "home", "desktop", "documents", "mnt", "var",
-]);
+// Scaffolding only when it appears at the very start of the path (/home/me/...).
+const LEADING_ONLY = new Set(["home", "user"]);
+
+const isScaffold = (seg, i) => {
+  const s = seg.toLowerCase();
+  return SCAFFOLD.has(s) || (i <= 1 && LEADING_ONLY.has(s));
+};
 
 export function projectName(raw) {
   if (!raw) return "unknown";
   const parts = String(raw).split(/[\\/-]+/).filter(Boolean);
   if (parts.length === 0) return "unknown";
 
-  // Prefer the deepest container dir as the cut point.
+  // Cut after the deepest scaffolding segment. If there is none, the input is
+  // already a clean label — return it untouched rather than truncating.
   let cut = -1;
   for (let i = 0; i < parts.length; i++) {
-    if (ANCHORS.has(parts[i].toLowerCase())) cut = i;
+    if (isScaffold(parts[i], i)) cut = i;
   }
-
-  let rest;
-  if (cut >= 0) {
-    rest = parts.slice(cut + 1);
-  } else {
-    // No recognisable container — drop the leading scaffolding run, then keep
-    // at most the last two segments.
-    let i = 0;
-    while (i < parts.length && LEADING_NOISE.has(parts[i].toLowerCase())) i++;
-    rest = parts.slice(i);
-    if (rest.length > 2) rest = rest.slice(-2);
-  }
+  const rest = parts.slice(cut + 1);
 
   if (rest.length === 0) return "unknown";
   if (rest.length === 1) return rest[0];
