@@ -190,7 +190,7 @@ byte-identical to today, so an installation without the hooks is unaffected.
 | Failure | Handling |
 |---|---|
 | Hard kill (terminal closed, crash) — no `SessionEnd` fires | The existing `abandonTtlMultiplier` threshold remains as backstop. Unchanged from today. |
-| Real request arrives after `ended` (session resumed, same prefix) | The request is ground truth: `upsert` clears the recorded state and reactivates. |
+| Real request arrives after `ended` (session resumed, same prefix) | The request is ground truth. `upsert` reactivates the session (`registry.ts:363-366`), and the gate compares the signal's timestamp against `lastRealRequestAt` — a signal older than the last real request loses. Without that comparison, a stale `ended` file left behind by a stopped hook (while the binding marker lingers in message history) would re-abandon a live session on every tick for the whole staleness window. |
 | State file malformed, unreadable, or older than `staleAfterSeconds` | Treated as unknown → today's behavior. |
 | `session-state/` directory absent | Treated as no signal → today's behavior. |
 | Hook throws | Existing fail-open contract; the proxy simply sees no state file. |
