@@ -132,9 +132,21 @@ config fields:
 | `pricing.cacheReadMultiplier` | `0.1` | Cache-read multiple of input rate. |
 | `pricing.rebuildMultiplier` | `1.25` | 5-min cache-write multiple. |
 | `pricing.rebuildMultiplier1h` | `2.0` | 1-hour cache-write multiple. |
+| `hookSignals.enabled` | `true` | Honor Claude Code session lifecycle signals from the plugin hooks. |
+| `hookSignals.stateDir` | `~/.stoke/session-state` | Per-session sidecar files written by the hooks. |
+| `hookSignals.staleAfterSeconds` | `900` | Ignore lifecycle signals older than this. |
 
 Full schema: `packages/proxy/src/types.ts` + `config-schema.ts`.
 OpenTelemetry export stays available and opt-in (see `otel` config section).
+
+`hookSignals` is how the proxy learns what API traffic cannot tell it: that a
+Claude Code session has *closed*. The plugin hooks write `turn_active` / `idle` /
+`ended` per session to `stateDir`, and `UserPromptSubmit` injects a
+`<stoke-session>` marker so the proxy can match a hook's `session_id` to its own
+prefix-hash session key — necessary because with several sessions open, one
+closing says nothing about which registry entry to drop. On `ended` the scheduler
+abandons that session within one tick instead of firing 2–5 doomed pings. With
+the hooks absent the directory is simply empty and behavior is unchanged.
 
 ## How it works (the design)
 

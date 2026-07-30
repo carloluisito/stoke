@@ -3,6 +3,30 @@
 All notable changes to stoke are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+
+- **Keepalive stops when a Claude Code session closes.** A new `SessionEnd` hook
+  publishes session lifecycle state (`turn_active` / `idle` / `ended`) to
+  `~/.stoke/session-state/`, and `UserPromptSubmit` injects a `<stoke-session>`
+  marker so the proxy can bind Claude Code's `session_id` to its own prefix-hash
+  session key. Previously a closed session kept getting pinged until the adaptive
+  cap bound — 2–5 wasted pings per close, on every concurrent session, because
+  the 30-minute abandon threshold lands far too late. Configurable via the
+  `hookSignals` block; with the hooks absent, behavior is unchanged. The signal
+  is ignored whenever a real request postdates it, so a stale sidecar left by a
+  stopped hook can never brake a live session.
+
+### Fixed
+
+- **The adaptive ping cap no longer treats certain returns as speculative ones.**
+  A long tool call that tripped `maxConsecutivePings` and then completed was
+  recording a `+returned` outcome into `observedReturnRate`, but that return was
+  guaranteed, not evidence that idle users come back. It inflated the cap for
+  sessions where returning is genuinely uncertain. Only pauses taken while idle
+  at the prompt now feed the cap.
+
 ## [0.1.0] — initial public release
 
 Renamed from `cache-keepalive` and prepped for OSS. Substantial behavior
