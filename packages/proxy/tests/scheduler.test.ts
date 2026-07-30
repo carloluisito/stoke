@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -9,7 +9,9 @@ import {
   effectiveConsecutivePingCap,
   effectiveCadenceMs,
   effectiveAbandonMs,
+  decidePingGate,
 } from "../src/scheduler.ts";
+import type { HookStateRecord } from "../src/hook-state.ts";
 import type { Session } from "../src/types.ts";
 import { Registry } from "../src/registry.ts";
 import { JsonlLogger } from "../src/logger.ts";
@@ -580,4 +582,181 @@ test("runSchedulerTick passes session.lastRatelimits into BudgetGuard.shouldPaus
   });
   assert.deepEqual(seenRl, [rl]);
   rmSync(path, { force: true });
+});
+
+// ===== hook-informed braking =========================================
+
+function boundSession(id?: string, lastRealRequestAt = 0): Session {
+  return { claudeSessionId: id, lastRealRequestAt } as Session;
+}
+
+test("decidePingGate abandons only a session whose owner ended", () => {
+  const states = new Map<string, HookStateRecord>([
+    ["dead", { state: "ended", ts: 100 }],
+    ["resting", { state: "idle", ts: 100 }],
+    ["busy", { state: "turn_active", ts: 100 }],
+  ]);
+  assert.equal(decidePingGate(boundSession("dead"), states), "abandon");
+  assert.equal(decidePingGate(boundSession("resting"), states), "proceed");
+  assert.equal(decidePingGate(boundSession("busy"), states), "proceed");
+});
+
+test("decidePingGate proceeds for unbound or unknown sessions", () => {
+  const states = new Map<string, HookStateRecord>([["dead", { state: "ended", ts: 100 }]]);
+  assert.equal(decidePingGate(boundSession(undefined), states), "proceed");
+  assert.equal(decidePingGate(boundSession("never-seen"), states), "proceed");
+  assert.equal(decidePingGate(boundSession("dead"), new Map()), "proceed");
+});
+
+test("decidePingGate ignores an 'ended' signal older than the last real request", () => {
+  // A stopped hook can leave an `ended` file behind while the binding marker
+  // persists in message history. A real request after that timestamp proves the
+  // session is alive and must win, or a live session gets re-abandoned on every
+  // tick for the whole staleness window.
+  const states = new Map<string, HookStateRecord>([["revived", { state: "ended", ts: 100 }]]);
+  assert.equal(decidePingGate(boundSession("revived", 500), states), "proceed");
+  assert.equal(decidePingGate(boundSession("revived", 100), states), "abandon");
+  assert.equal(decidePingGate(boundSession("revived", 50), states), "abandon");
+});
+
+test("runSchedulerTick fires no ping for a session whose Claude Code session ended", async () => {
+  const stateDir = mkdtempSync(join(tmpdir(), "csch-state-"));
+  const path = join(mkdtempSync(join(tmpdir(), "csch-")), "events.jsonl");
+  const registry = new Registry();
+  const logger = new JsonlLogger(path);
+  const config = defaultConfig();
+  config.hookSignals = { enabled: true, stateDir, staleAfterSeconds: 900 };
+  const guard = new BudgetGuard(config);
+
+  const uuid = "0199f3c4-3333-4aaa-8bbb-0123456789ab";
+  const { key } = registry.upsert(
+    {
+      model: "claude-opus-4-7",
+      tools: [],
+      system: "s",
+      messages: [{ role: "user", content: `<stoke-session>${uuid}</stoke-session>` }],
+    },
+    "Bearer abc",
+    0,
+  );
+  registry.recordRealUsage(key, {
+    input_tokens: 1,
+    output_tokens: 0,
+    cache_creation_input_tokens: 60000,
+    cache_read_input_tokens: 0,
+  }, NO_RL);
+
+  writeFileSync(join(stateDir, `${uuid}.json`), JSON.stringify({ state: "ended", ts: 200_000 }));
+
+  let pinged = false;
+  await runSchedulerTick({
+    registry, logger, config, guard,
+    fetcher: async () => {
+      pinged = true;
+      return { status: 200, usage: null, ratelimits: NO_RL };
+    },
+    nowMs: 300_000,
+    spendUsdToday: 0, spendUsdMonth: 0, pingsToday: 0,
+  });
+
+  assert.equal(pinged, false, "no ping may be fired at an ended session");
+  assert.equal(registry.get(key)?.state, "abandoned");
+  rmSync(stateDir, { recursive: true, force: true });
+});
+
+test("runSchedulerTick still pings an idle bound session (brake-only, not stingier)", async () => {
+  const stateDir = mkdtempSync(join(tmpdir(), "csch-idle-"));
+  const path = join(mkdtempSync(join(tmpdir(), "csch-")), "events.jsonl");
+  const registry = new Registry();
+  const logger = new JsonlLogger(path);
+  const config = defaultConfig();
+  config.hookSignals = { enabled: true, stateDir, staleAfterSeconds: 900 };
+  const guard = new BudgetGuard(config);
+
+  const uuid = "0199f3c4-4444-4aaa-8bbb-0123456789ab";
+  const { key } = registry.upsert(
+    {
+      model: "claude-opus-4-7",
+      tools: [],
+      system: "s",
+      messages: [{ role: "user", content: `<stoke-session>${uuid}</stoke-session>` }],
+    },
+    "Bearer abc",
+    0,
+  );
+  registry.recordRealUsage(key, {
+    input_tokens: 1,
+    output_tokens: 0,
+    cache_creation_input_tokens: 60000,
+    cache_read_input_tokens: 0,
+  }, NO_RL);
+
+  writeFileSync(join(stateDir, `${uuid}.json`), JSON.stringify({ state: "idle", ts: 200_000 }));
+
+  let pinged = false;
+  await runSchedulerTick({
+    registry, logger, config, guard,
+    fetcher: async () => {
+      pinged = true;
+      return {
+        status: 200,
+        usage: {
+          input_tokens: 2,
+          output_tokens: 0,
+          cache_creation_input_tokens: 0,
+          cache_read_input_tokens: 60000,
+        },
+        ratelimits: NO_RL,
+      };
+    },
+    nowMs: 300_000,
+    spendUsdToday: 0, spendUsdMonth: 0, pingsToday: 0,
+  });
+
+  assert.equal(pinged, true, "idle-at-prompt must still be pinged");
+  assert.equal(registry.get(key)?.state, "active");
+  rmSync(stateDir, { recursive: true, force: true });
+});
+
+test("runSchedulerTick is unaffected when hookSignals is disabled", async () => {
+  const path = join(mkdtempSync(join(tmpdir(), "csch-off-")), "events.jsonl");
+  const registry = new Registry();
+  const logger = new JsonlLogger(path);
+  const config = defaultConfig();
+  config.hookSignals = { enabled: false, stateDir: "Z:/nope", staleAfterSeconds: 900 };
+  const guard = new BudgetGuard(config);
+
+  const { key } = registry.upsert(
+    { model: "claude-opus-4-7", tools: [], system: "s", messages: [{ role: "user", content: "hi" }] },
+    "Bearer abc",
+    0,
+  );
+  registry.recordRealUsage(key, {
+    input_tokens: 1,
+    output_tokens: 0,
+    cache_creation_input_tokens: 60000,
+    cache_read_input_tokens: 0,
+  }, NO_RL);
+
+  let pinged = false;
+  await runSchedulerTick({
+    registry, logger, config, guard,
+    fetcher: async () => {
+      pinged = true;
+      return {
+        status: 200,
+        usage: {
+          input_tokens: 2,
+          output_tokens: 0,
+          cache_creation_input_tokens: 0,
+          cache_read_input_tokens: 60000,
+        },
+        ratelimits: NO_RL,
+      };
+    },
+    nowMs: 300_000,
+    spendUsdToday: 0, spendUsdMonth: 0, pingsToday: 0,
+  });
+
+  assert.equal(pinged, true);
 });

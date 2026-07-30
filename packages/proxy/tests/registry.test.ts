@@ -590,3 +590,67 @@ test("upsert rebinds when a newer marker arrives on the same prefix", () => {
   );
   assert.equal(registry.get(key)?.claudeSessionId, UUID_B);
 });
+
+// ===== honest adaptive-cap accounting ================================
+
+test("a certain-return pause does not feed the adaptive cap", () => {
+  const registry = new Registry();
+  const payload = { model: "claude-opus-4-7", tools: [], system: "s", messages: [{ role: "user", content: "hi" }] };
+  const { key } = registry.upsert(payload, "Bearer x", 0);
+
+  // Paused mid-turn: a long tool call was always going to send a real request,
+  // so counting its return as evidence that idle users come back would inflate
+  // the cap for sessions where the return is genuinely uncertain.
+  registry.pause(key, "pings_without_progress", false);
+  registry.upsert(payload, "Bearer x", 1000);
+  assert.equal(registry.pauseOutcomeCount(50), 0);
+
+  // Paused while idle at the prompt: genuinely speculative, so it counts.
+  registry.pause(key, "pings_without_progress", true);
+  registry.upsert(payload, "Bearer x", 2000);
+  assert.equal(registry.pauseOutcomeCount(50), 1);
+});
+
+test("pause defaults to speculative so pre-hook callers keep their semantics", () => {
+  const registry = new Registry();
+  const payload = { model: "claude-opus-4-7", tools: [], system: "s", messages: [{ role: "user", content: "hi" }] };
+  const { key } = registry.upsert(payload, "Bearer x", 0);
+  registry.pause(key, "pings_without_progress");
+  registry.upsert(payload, "Bearer x", 1000);
+  assert.equal(registry.pauseOutcomeCount(50), 1);
+});
+
+test("abandonNow records a -returned outcome only for speculative pauses", () => {
+  const registry = new Registry();
+  const payload = { model: "claude-opus-4-7", tools: [], system: "s", messages: [{ role: "user", content: "hi" }] };
+
+  const certain = new Registry();
+  const ck = certain.upsert(payload, "Bearer x", 0).key;
+  certain.pause(ck, "pings_without_progress", false);
+  certain.abandonNow(ck, 1000);
+  assert.equal(certain.get(ck)?.state, "abandoned");
+  assert.equal(certain.pauseOutcomeCount(50), 0);
+
+  const speculative = registry;
+  const sk = speculative.upsert(payload, "Bearer x", 0).key;
+  speculative.pause(sk, "pings_without_progress", true);
+  speculative.abandonNow(sk, 1000);
+  assert.equal(speculative.get(sk)?.state, "abandoned");
+  assert.equal(speculative.pauseOutcomeCount(50), 1);
+});
+
+test("abandonNow on an active session records nothing and is idempotent", () => {
+  const registry = new Registry();
+  const payload = { model: "claude-opus-4-7", tools: [], system: "s", messages: [{ role: "user", content: "hi" }] };
+  const { key } = registry.upsert(payload, "Bearer x", 0);
+  registry.abandonNow(key, 1000);
+  registry.abandonNow(key, 2000);
+  assert.equal(registry.get(key)?.state, "abandoned");
+  assert.equal(registry.pauseOutcomeCount(50), 0);
+});
+
+test("abandonNow on an unknown key is a no-op", () => {
+  const registry = new Registry();
+  registry.abandonNow("nope", 1000);
+  assert.equal(registry.pauseOutcomeCount(50), 0);
+});

@@ -397,9 +397,13 @@ export class Registry {
       // If the session was paused with `pings_without_progress` and a real
       // request just arrived, the user came back — record a +returned outcome
       // for the adaptive-cap math BEFORE we mutate state.
+      // Only speculative pauses count. A mid-turn pause was always going to be
+      // followed by a real request, so treating its return as evidence would
+      // inflate the cap for sessions where the return is genuinely uncertain.
       if (
         existing.state === "paused" &&
-        existing.pauseReason === "pings_without_progress"
+        existing.pauseReason === "pings_without_progress" &&
+        existing.pausedWhileIdle !== false
       ) {
         this.recordPauseOutcome(true, nowMs);
       }
@@ -503,11 +507,38 @@ export class Registry {
     s.lastResume = ev;
   }
 
-  pause(key: SessionKey, reason: PauseReason): void {
+  /**
+   * `pausedWhileIdle` records whether the pause was speculative (the user was
+   * idle at the prompt) or certain-return (a turn was in flight). Only
+   * speculative pauses are evidence about whether idle users come back, so only
+   * they feed the adaptive cap. Defaults to true, which preserves the semantics
+   * every pre-hook caller relied on.
+   */
+  pause(key: SessionKey, reason: PauseReason, pausedWhileIdle = true): void {
     const s = this.sessions.get(key);
     if (!s) return;
     s.state = "paused";
     s.pauseReason = reason;
+    s.pausedWhileIdle = pausedWhileIdle;
+  }
+
+  /**
+   * Abandon one session immediately. Used when a hook reports that the owning
+   * Claude Code session ended, where the probability a keepalive ping ever pays
+   * off is exactly 0 — waiting for the `abandonTtlMultiplier` threshold would
+   * burn 2-5 pings first.
+   */
+  abandonNow(key: SessionKey, nowMs: number): void {
+    const s = this.sessions.get(key);
+    if (!s || s.state === "abandoned") return;
+    if (
+      s.state === "paused" &&
+      s.pauseReason === "pings_without_progress" &&
+      s.pausedWhileIdle !== false
+    ) {
+      this.recordPauseOutcome(false, nowMs);
+    }
+    s.state = "abandoned";
   }
 
   /**
@@ -544,7 +575,11 @@ export class Registry {
         // being abandoned without a return, that's a –returned outcome for
         // the adaptive-cap math. (No outcome recorded for sessions abandoned
         // from other states — those are not the cap's responsibility.)
-        if (s.state === "paused" && s.pauseReason === "pings_without_progress") {
+        if (
+          s.state === "paused" &&
+          s.pauseReason === "pings_without_progress" &&
+          s.pausedWhileIdle !== false
+        ) {
           this.recordPauseOutcome(false, nowMs);
         }
         s.state = "abandoned";

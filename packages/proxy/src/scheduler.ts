@@ -18,6 +18,7 @@ import {
   parseRateLimitHeaders,
 } from "./usage-parser.ts";
 import type { OtelHandle } from "./otel.ts";
+import { readHookStates, pruneHookStates, type HookStateRecord } from "./hook-state.ts";
 
 /**
  * Effective cadence (ms) for a session: ping (detectedTtlSeconds - margin)
@@ -78,6 +79,35 @@ export function effectiveConsecutivePingCap(
   return Math.max(minConsecutivePings, Math.min(maxConsecutivePings, derived));
 }
 
+export type PingGate = "proceed" | "abandon";
+
+/**
+ * Brake decision for one session, given what Claude Code reports about its owner.
+ *
+ * This only ever PREVENTS pings: no state returns a verdict that causes more
+ * pings than the hook-less path would. An unbound session, an unknown
+ * session_id, and an absent or stale signal all proceed unchanged, so an install
+ * without the plugin behaves exactly as before.
+ *
+ * An `ended` signal is honored only if nothing newer contradicts it. A real
+ * request recorded AFTER the hook wrote the file proves the session is alive —
+ * which is what happens if the hooks stop running while the binding marker
+ * lingers in message history — so `lastRealRequestAt` wins that tie-break.
+ *
+ * Pure function — no I/O, safe to test exhaustively.
+ */
+export function decidePingGate(
+  session: Session,
+  hookStates: Map<string, HookStateRecord>,
+): PingGate {
+  const id = session.claudeSessionId;
+  if (!id) return "proceed";
+  const record = hookStates.get(id);
+  if (!record || record.state !== "ended") return "proceed";
+  if (session.lastRealRequestAt > record.ts) return "proceed";
+  return "abandon";
+}
+
 /**
  * Pure classifier — maps a PingResponse to the action the scheduler should take.
  * No side effects; safe to test exhaustively.
@@ -128,6 +158,44 @@ export async function runSchedulerTick(inputs: TickInputs): Promise<void> {
     effectiveAbandonMs(s, inputs.config),
   );
 
+  // What Claude Code knows that API traffic cannot show: which sessions are gone.
+  // Read once per tick, then used both to brake ended sessions and to classify a
+  // cap pause as speculative or certain-return.
+  const hookSignals = inputs.config.hookSignals;
+  const hookStates: Map<string, HookStateRecord> = hookSignals?.enabled
+    ? readHookStates(
+        hookSignals.stateDir,
+        inputs.nowMs,
+        hookSignals.staleAfterSeconds * 1000,
+      )
+    : new Map<string, HookStateRecord>();
+
+  if (hookSignals?.enabled) {
+    // Disk hygiene only — the staleness window already makes old files inert.
+    // Reuses the session eviction horizon so a sidecar outlives the session it
+    // describes.
+    pruneHookStates(
+      hookSignals.stateDir,
+      inputs.nowMs,
+      inputs.config.evictAfterHours * 3600 * 1000,
+    );
+
+    for (const session of inputs.registry.all()) {
+      if (session.state === "abandoned") continue;
+      if (decidePingGate(session, hookStates) !== "abandon") continue;
+      inputs.registry.abandonNow(session.key, inputs.nowMs);
+      inputs.logger.write({
+        ts: new Date(inputs.nowMs).toISOString(),
+        kind: "session_paused",
+        sessionKey: session.key,
+        reason: "claude_session_ended",
+      });
+      inputs.otel?.incrementCounter?.("cache_keepalive.pings_skipped_total", 1, {
+        reason: "claude_session_ended",
+      });
+    }
+  }
+
   // Per-session cadence: only sessions idle longer than their effective cadence
   // are eligible to ping. detectedTtlSeconds drives this; the config knob
   // pingCadenceMarginSeconds is the safety margin before TTL expiry.
@@ -160,7 +228,12 @@ export async function runSchedulerTick(inputs: TickInputs): Promise<void> {
     inputs.config.maxConsecutivePings,
   );
   if (target.pingsSinceLastReal >= cap) {
-    inputs.registry.pause(target.key, "pings_without_progress");
+    // Mid-turn the return is certain, so this pause is not evidence about
+    // whether idle users come back and must not feed the adaptive cap.
+    const speculative =
+      !target.claudeSessionId ||
+      hookStates.get(target.claudeSessionId)?.state !== "turn_active";
+    inputs.registry.pause(target.key, "pings_without_progress", speculative);
     inputs.logger.write({
       ts: new Date(inputs.nowMs).toISOString(),
       kind: "session_paused",
