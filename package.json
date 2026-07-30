@@ -16,6 +16,8 @@
   },
   "scripts": {
     "setup": "node scripts/setup.mjs",
+    "install:hooks": "node packages/cli/bin/stoke.mjs install",
+    "stoke": "node packages/cli/bin/stoke.mjs",
     "start": "node packages/cli/bin/stoke.mjs start",
     "status": "node packages/cli/bin/stoke.mjs status",
     "test": "npm run test -ws --if-present",

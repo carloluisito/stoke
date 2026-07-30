@@ -209,10 +209,37 @@ function persistStokeConfig(configDirs) {
   return cfgPath;
 }
 
+/**
+ * Profiles already known from a previous install. Union'd with detection so an
+ * install can never SHRINK the managed set — see cmdInstall.
+ */
+function persistedProfiles() {
+  try {
+    const cfg = JSON.parse(fs.readFileSync(path.join(stokeDir, "config.json"), "utf8"));
+    return Array.isArray(cfg.monitor?.configDirs) ? cfg.monitor.configDirs : [];
+  } catch {
+    return [];
+  }
+}
+
 function cmdInstall() {
   fs.mkdirSync(stokeDir, { recursive: true });
 
-  const profiles = detectProfiles();
+  // Union detection with what a previous install already recorded. Detection
+  // honors CLAUDE_CONFIG_DIR, which Claude Code sets — so running `stoke install`
+  // from INSIDE a session would otherwise narrow the set to that one profile and
+  // silently drop the others, disabling their hooks and transcript watching.
+  const detected = detectProfiles();
+  const known = persistedProfiles();
+  const profiles = [...new Set([...known, ...detected].map((p) => path.resolve(p)))]
+    .filter((p) => fs.existsSync(p));
+  const dropped = known.filter((k) => !detected.some((d) => path.resolve(d) === path.resolve(k)));
+  if (dropped.length) {
+    console.log(`Kept previously-installed profile(s) detection missed: ${dropped.join(", ")}`);
+    if (process.env.CLAUDE_CONFIG_DIR) {
+      console.log(`  (CLAUDE_CONFIG_DIR=${process.env.CLAUDE_CONFIG_DIR} narrowed detection — normal when run inside Claude Code)`);
+    }
+  }
   const cfgPath = persistStokeConfig(profiles);
   console.log(`Claude profiles: ${profiles.join(", ")}`);
   console.log(`Persisted to ${cfgPath} (monitor.configDirs + optimizer levers)`);
