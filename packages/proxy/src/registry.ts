@@ -543,6 +543,10 @@ export class Registry {
       this.recordPauseOutcome(false, nowMs);
     }
     s.state = "abandoned";
+    // Record WHY on the session itself, not just in the event log. Without this
+    // the dashboard cannot tell a clean close from a 6-hour idle timeout — both
+    // would render as a bare "abandoned".
+    s.pauseReason = "claude_session_ended";
   }
 
   /**
