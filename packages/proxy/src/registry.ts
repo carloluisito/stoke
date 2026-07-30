@@ -48,6 +48,58 @@ export function computeSessionKey(payload: Hashable): SessionKey {
     .slice(0, 16);
 }
 
+// Deliberately NOT UUID-shaped: Claude Code's documented example session_id is
+// `abc123`, not a UUID, so pinning this to UUID syntax would silently disable the
+// entire binding — and with it the SessionEnd brake — if the id format ever
+// differs. A conservative token charset keeps the tag unambiguous while staying
+// agnostic about what the id looks like.
+const SESSION_MARKER_RE = /<stoke-session>([A-Za-z0-9._-]{4,128})<\/stoke-session>/g;
+
+/**
+ * Recover Claude Code's own session_id from the marker its UserPromptSubmit hook
+ * injects. This is the only join between what a hook knows (session_id) and what
+ * the registry knows (a hash of model + tools + system), and without it the proxy
+ * cannot tell WHICH session a SessionEnd refers to when several run at once.
+ *
+ * Scans `messages` ONLY. The marker is deliberately placed where
+ * `cacheablePrefix` excludes it, so it cannot fragment the session key — and
+ * honoring one found in tools/system would defeat that guarantee.
+ *
+ * Returns the LAST match: a resumed or forked conversation carries the old
+ * marker in history plus a fresh one, and the newest is the live session.
+ *
+ * Pure function — no I/O, safe to test exhaustively.
+ */
+export function extractClaudeSessionId(payload: Hashable): string | null {
+  const messages = payload.messages;
+  if (!Array.isArray(messages)) return null;
+  let found: string | null = null;
+  for (const msg of messages) {
+    for (const text of markerTexts(msg)) {
+      for (const m of text.matchAll(SESSION_MARKER_RE)) found = m[1];
+    }
+  }
+  return found;
+}
+
+/** Every plain-text string reachable in a message's content, string or blocks. */
+function markerTexts(msg: unknown): string[] {
+  if (!msg || typeof msg !== "object") return [];
+  const content = (msg as Record<string, unknown>).content;
+  if (typeof content === "string") return [content];
+  if (!Array.isArray(content)) return [];
+  const out: string[] = [];
+  for (const block of content) {
+    if (typeof block === "string") {
+      out.push(block);
+    } else if (block && typeof block === "object") {
+      const t = (block as Record<string, unknown>).text;
+      if (typeof t === "string") out.push(t);
+    }
+  }
+  return out;
+}
+
 function cacheablePrefix(payload: Hashable): unknown {
   // Hash only the structural prefix: tools + system. Messages are
   // deliberately excluded — Claude Code rotates cache_control onto the
@@ -338,6 +390,9 @@ export class Registry {
   ): UpsertResult {
     const key = computeSessionKey(payload as Hashable);
     const ttlSec = detectCacheTtlSeconds(payload as Hashable);
+    // Only ever OVERWRITE on a hit: a markerless request (a subagent, or a turn
+    // where the hook did not run) must not unbind a session we already know.
+    const claudeSessionId = extractClaudeSessionId(payload as Hashable);
     const existing = this.sessions.get(key);
     if (existing) {
       const previousState: SessionStateName = existing.state;
@@ -346,9 +401,13 @@ export class Registry {
       // If the session was paused with `pings_without_progress` and a real
       // request just arrived, the user came back — record a +returned outcome
       // for the adaptive-cap math BEFORE we mutate state.
+      // Only speculative pauses count. A mid-turn pause was always going to be
+      // followed by a real request, so treating its return as evidence would
+      // inflate the cap for sessions where the return is genuinely uncertain.
       if (
         existing.state === "paused" &&
-        existing.pauseReason === "pings_without_progress"
+        existing.pauseReason === "pings_without_progress" &&
+        existing.pausedWhileIdle !== false
       ) {
         this.recordPauseOutcome(true, nowMs);
       }
@@ -360,6 +419,7 @@ export class Registry {
       existing.lastRealRequestAt = nowMs;
       existing.detectedTtlSeconds = ttlSec;
       existing.pingsSinceLastReal = 0;
+      if (claudeSessionId) existing.claudeSessionId = claudeSessionId;
       if (existing.state !== "active") {
         existing.state = "active";
         delete existing.pauseReason;
@@ -389,6 +449,7 @@ export class Registry {
       pingHistory5h: [],
       lastRatelimits: null,
       state: "active",
+      ...(claudeSessionId ? { claudeSessionId } : {}),
     };
     this.sessions.set(key, fresh);
     return {
@@ -450,11 +511,38 @@ export class Registry {
     s.lastResume = ev;
   }
 
-  pause(key: SessionKey, reason: PauseReason): void {
+  /**
+   * `pausedWhileIdle` records whether the pause was speculative (the user was
+   * idle at the prompt) or certain-return (a turn was in flight). Only
+   * speculative pauses are evidence about whether idle users come back, so only
+   * they feed the adaptive cap. Defaults to true, which preserves the semantics
+   * every pre-hook caller relied on.
+   */
+  pause(key: SessionKey, reason: PauseReason, pausedWhileIdle = true): void {
     const s = this.sessions.get(key);
     if (!s) return;
     s.state = "paused";
     s.pauseReason = reason;
+    s.pausedWhileIdle = pausedWhileIdle;
+  }
+
+  /**
+   * Abandon one session immediately. Used when a hook reports that the owning
+   * Claude Code session ended, where the probability a keepalive ping ever pays
+   * off is exactly 0 — waiting for the `abandonTtlMultiplier` threshold would
+   * burn 2-5 pings first.
+   */
+  abandonNow(key: SessionKey, nowMs: number): void {
+    const s = this.sessions.get(key);
+    if (!s || s.state === "abandoned") return;
+    if (
+      s.state === "paused" &&
+      s.pauseReason === "pings_without_progress" &&
+      s.pausedWhileIdle !== false
+    ) {
+      this.recordPauseOutcome(false, nowMs);
+    }
+    s.state = "abandoned";
   }
 
   /**
@@ -491,7 +579,11 @@ export class Registry {
         // being abandoned without a return, that's a –returned outcome for
         // the adaptive-cap math. (No outcome recorded for sessions abandoned
         // from other states — those are not the cap's responsibility.)
-        if (s.state === "paused" && s.pauseReason === "pings_without_progress") {
+        if (
+          s.state === "paused" &&
+          s.pauseReason === "pings_without_progress" &&
+          s.pausedWhileIdle !== false
+        ) {
           this.recordPauseOutcome(false, nowMs);
         }
         s.state = "abandoned";

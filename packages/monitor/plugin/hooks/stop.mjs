@@ -1,7 +1,11 @@
-import { readStdin, loadOptimizerConfig, openDbSafe, logIntervention, sessionTurns } from "./lib.mjs";
+import { readStdin, loadOptimizerConfig, openDbSafe, logIntervention, sessionTurns, saveSessionState } from "./lib.mjs";
 
 try {
   const input = await readStdin();
+  // The turn finished, so the user is now idle at the prompt and any further
+  // keepalive ping is speculative. Recorded before the DB work so a database
+  // problem cannot lose the signal.
+  saveSessionState(input.session_id, "idle", input.cwd);
   const cfg = loadOptimizerConfig();
   const mode = cfg.levers.session_cost_record || "enforce";
   if (mode !== "observe") {

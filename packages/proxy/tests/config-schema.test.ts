@@ -197,3 +197,52 @@ test("validateConfig rejects pingCadenceMarginSeconds >= cacheTtlSeconds (no roo
       /pingCadenceMarginSeconds.*must be less than.*cacheTtlSeconds/.test((err as Error).message),
   );
 });
+
+test("validateConfig accepts a hookSignals block", () => {
+  const cfg = validateConfig({
+    ...defaultConfig(),
+    hookSignals: { enabled: true, stateDir: "/tmp/state", staleAfterSeconds: 900 },
+  });
+  assert.equal(cfg.hookSignals?.enabled, true);
+  assert.equal(cfg.hookSignals?.stateDir, "/tmp/state");
+  assert.equal(cfg.hookSignals?.staleAfterSeconds, 900);
+});
+
+test("validateConfig rejects unknown hookSignals fields", () => {
+  assert.throws(
+    () => validateConfig({
+      ...defaultConfig(),
+      hookSignals: { enabled: true, stateDir: "/t", staleAfterSeconds: 900, nope: 1 },
+    }),
+    (err: unknown) => err instanceof ConfigError && /hookSignals: unknown field nope/.test((err as Error).message),
+  );
+});
+
+test("validateConfig rejects a too-small hookSignals.staleAfterSeconds", () => {
+  assert.throws(
+    () => validateConfig({
+      ...defaultConfig(),
+      hookSignals: { enabled: true, stateDir: "/t", staleAfterSeconds: 10 },
+    }),
+    (err: unknown) => err instanceof ConfigError && /staleAfterSeconds must be >= 60/.test((err as Error).message),
+  );
+});
+
+test("validateConfig rejects a non-object hookSignals", () => {
+  assert.throws(
+    () => validateConfig({ ...defaultConfig(), hookSignals: "yes" }),
+    (err: unknown) => err instanceof ConfigError && /hookSignals must be an object/.test((err as Error).message),
+  );
+});
+
+test("validateConfig still accepts a config with no hookSignals block", () => {
+  const raw: Record<string, unknown> = { ...defaultConfig() };
+  delete raw.hookSignals;
+  assert.equal(validateConfig(raw).hookSignals, undefined);
+});
+
+test("defaultConfig ships hookSignals enabled with a session-state dir", () => {
+  const cfg = defaultConfig();
+  assert.equal(cfg.hookSignals?.enabled, true);
+  assert.match(cfg.hookSignals?.stateDir ?? "", /session-state$/);
+});

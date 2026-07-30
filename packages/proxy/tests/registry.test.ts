@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { Registry, computeSessionKey, detectCacheTtlSeconds } from "../src/registry.ts";
+import { Registry, computeSessionKey, detectCacheTtlSeconds, extractClaudeSessionId } from "../src/registry.ts";
 
 const NO_RL = {
   unified5hUtilization: null,
@@ -501,4 +501,175 @@ test("evictAbandoned leaves sessions inside the grace period alone (state irrele
   const evicted = reg.evictAbandoned(60 * 60 * 1000, 24 * 60 * 60 * 1000);
   assert.equal(evicted.length, 0);
   assert.ok(reg.get(key));
+});
+
+// ===== Claude Code session binding ===================================
+
+const UUID_A = "0199f3c4-1111-4aaa-8bbb-0123456789ab";
+const UUID_B = "0199f3c4-2222-4aaa-8bbb-0123456789ab";
+
+test("extractClaudeSessionId reads the marker from a string message", () => {
+  const got = extractClaudeSessionId({
+    messages: [{ role: "user", content: `<stoke-session>${UUID_A}</stoke-session>\nhello` }],
+  });
+  assert.equal(got, UUID_A);
+});
+
+test("extractClaudeSessionId reads the marker from block-array content", () => {
+  const got = extractClaudeSessionId({
+    messages: [{ role: "user", content: [{ type: "text", text: `<stoke-session>${UUID_A}</stoke-session>` }] }],
+  });
+  assert.equal(got, UUID_A);
+});
+
+test("extractClaudeSessionId returns the LAST marker so a resumed session wins", () => {
+  const got = extractClaudeSessionId({
+    messages: [
+      { role: "user", content: `<stoke-session>${UUID_A}</stoke-session>` },
+      { role: "assistant", content: "ok" },
+      { role: "user", content: `<stoke-session>${UUID_B}</stoke-session>` },
+    ],
+  });
+  assert.equal(got, UUID_B);
+});
+
+test("extractClaudeSessionId returns null when absent or malformed", () => {
+  assert.equal(extractClaudeSessionId({ messages: [{ role: "user", content: "hi" }] }), null);
+  assert.equal(extractClaudeSessionId({ messages: "not-an-array" }), null);
+  assert.equal(extractClaudeSessionId({}), null);
+  assert.equal(extractClaudeSessionId({ messages: [null, 42, { content: null }] }), null);
+  // Empty, too short, or containing characters no session_id uses.
+  for (const bad of ["", "ab", "has space", "semi;colon", "<nested>"]) {
+    assert.equal(
+      extractClaudeSessionId({
+        messages: [{ role: "user", content: `<stoke-session>${bad}</stoke-session>` }],
+      }),
+      null,
+      `"${bad}" must not be accepted as a session id`,
+    );
+  }
+});
+
+test("extractClaudeSessionId accepts non-UUID session ids", () => {
+  // Claude Code's documented example session_id is `abc123`. Requiring UUID
+  // syntax would silently disable the binding, and with it the SessionEnd brake.
+  assert.equal(
+    extractClaudeSessionId({ messages: [{ role: "user", content: "<stoke-session>abc123</stoke-session>" }] }),
+    "abc123",
+  );
+  assert.equal(
+    extractClaudeSessionId({ messages: [{ role: "user", content: "<stoke-session>sess_A-1.2</stoke-session>" }] }),
+    "sess_A-1.2",
+  );
+});
+
+test("extractClaudeSessionId ignores a marker outside messages", () => {
+  // The marker must never be read from tools/system: those ARE the hash input,
+  // and honoring one there would tie the binding to the cache key.
+  assert.equal(
+    extractClaudeSessionId({ system: `<stoke-session>${UUID_A}</stoke-session>`, messages: [] }),
+    null,
+  );
+});
+
+test("upsert binds claudeSessionId and a later markerless request does not clear it", () => {
+  const registry = new Registry();
+  const { key } = registry.upsert(
+    {
+      model: "claude-opus-4-7",
+      tools: [],
+      system: "s",
+      messages: [{ role: "user", content: `<stoke-session>${UUID_A}</stoke-session>` }],
+    },
+    "Bearer x",
+    0,
+  );
+  assert.equal(registry.get(key)?.claudeSessionId, UUID_A);
+
+  registry.upsert(
+    { model: "claude-opus-4-7", tools: [], system: "s", messages: [{ role: "user", content: "no marker" }] },
+    "Bearer x",
+    1000,
+  );
+  assert.equal(registry.get(key)?.claudeSessionId, UUID_A, "a markerless turn must not unbind the session");
+});
+
+test("upsert rebinds when a newer marker arrives on the same prefix", () => {
+  const registry = new Registry();
+  const base = { model: "claude-opus-4-7", tools: [], system: "s" };
+  const { key } = registry.upsert(
+    { ...base, messages: [{ role: "user", content: `<stoke-session>${UUID_A}</stoke-session>` }] },
+    "Bearer x",
+    0,
+  );
+  registry.upsert(
+    { ...base, messages: [{ role: "user", content: `<stoke-session>${UUID_B}</stoke-session>` }] },
+    "Bearer x",
+    1000,
+  );
+  assert.equal(registry.get(key)?.claudeSessionId, UUID_B);
+});
+
+// ===== honest adaptive-cap accounting ================================
+
+test("a certain-return pause does not feed the adaptive cap", () => {
+  const registry = new Registry();
+  const payload = { model: "claude-opus-4-7", tools: [], system: "s", messages: [{ role: "user", content: "hi" }] };
+  const { key } = registry.upsert(payload, "Bearer x", 0);
+
+  // Paused mid-turn: a long tool call was always going to send a real request,
+  // so counting its return as evidence that idle users come back would inflate
+  // the cap for sessions where the return is genuinely uncertain.
+  registry.pause(key, "pings_without_progress", false);
+  registry.upsert(payload, "Bearer x", 1000);
+  assert.equal(registry.pauseOutcomeCount(50), 0);
+
+  // Paused while idle at the prompt: genuinely speculative, so it counts.
+  registry.pause(key, "pings_without_progress", true);
+  registry.upsert(payload, "Bearer x", 2000);
+  assert.equal(registry.pauseOutcomeCount(50), 1);
+});
+
+test("pause defaults to speculative so pre-hook callers keep their semantics", () => {
+  const registry = new Registry();
+  const payload = { model: "claude-opus-4-7", tools: [], system: "s", messages: [{ role: "user", content: "hi" }] };
+  const { key } = registry.upsert(payload, "Bearer x", 0);
+  registry.pause(key, "pings_without_progress");
+  registry.upsert(payload, "Bearer x", 1000);
+  assert.equal(registry.pauseOutcomeCount(50), 1);
+});
+
+test("abandonNow records a -returned outcome only for speculative pauses", () => {
+  const registry = new Registry();
+  const payload = { model: "claude-opus-4-7", tools: [], system: "s", messages: [{ role: "user", content: "hi" }] };
+
+  const certain = new Registry();
+  const ck = certain.upsert(payload, "Bearer x", 0).key;
+  certain.pause(ck, "pings_without_progress", false);
+  certain.abandonNow(ck, 1000);
+  assert.equal(certain.get(ck)?.state, "abandoned");
+  assert.equal(certain.pauseOutcomeCount(50), 0);
+
+  const speculative = registry;
+  const sk = speculative.upsert(payload, "Bearer x", 0).key;
+  speculative.pause(sk, "pings_without_progress", true);
+  speculative.abandonNow(sk, 1000);
+  assert.equal(speculative.get(sk)?.state, "abandoned");
+  assert.equal(speculative.pauseOutcomeCount(50), 1);
+});
+
+test("abandonNow on an active session records nothing and is idempotent", () => {
+  const registry = new Registry();
+  const payload = { model: "claude-opus-4-7", tools: [], system: "s", messages: [{ role: "user", content: "hi" }] };
+  const { key } = registry.upsert(payload, "Bearer x", 0);
+  registry.abandonNow(key, 1000);
+  registry.abandonNow(key, 2000);
+  assert.equal(registry.get(key)?.state, "abandoned");
+  assert.equal(registry.pauseOutcomeCount(50), 0);
+});
+
+test("abandonNow on an unknown key is a no-op", () => {
+  const registry = new Registry();
+  registry.abandonNow("nope", 1000);
+  assert.equal(registry.pauseOutcomeCount(50), 0);
 });

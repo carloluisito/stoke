@@ -241,6 +241,29 @@ export function validateConfig(raw: unknown): Config {
     otel = o;
   }
 
+  let hookSignals: Config["hookSignals"];
+  if (raw.hookSignals !== undefined) {
+    if (!isObject(raw.hookSignals)) throw new ConfigError("hookSignals must be an object");
+    const allowed = new Set(["enabled", "stateDir", "staleAfterSeconds"]);
+    for (const k of Object.keys(raw.hookSignals)) {
+      if (!allowed.has(k)) throw new ConfigError(`hookSignals: unknown field ${k}`);
+    }
+    const enabled = requireBoolean(raw.hookSignals.enabled, "hookSignals.enabled");
+    const stateDir = requireNonEmptyString(raw.hookSignals.stateDir, "hookSignals.stateDir");
+    const staleAfterSeconds = requireInteger(
+      raw.hookSignals.staleAfterSeconds,
+      "hookSignals.staleAfterSeconds",
+    );
+    // A signal must outlive at least one ping cadence to be useful, and a very
+    // short window would discard `ended` before the scheduler ever reads it.
+    if (staleAfterSeconds < 60) {
+      throw new ConfigError(
+        `hookSignals.staleAfterSeconds must be >= 60, got ${staleAfterSeconds}`,
+      );
+    }
+    hookSignals = { enabled, stateDir, staleAfterSeconds };
+  }
+
   if (typeof raw.authToken !== "string") {
     throw new ConfigError(`authToken must be a string, got ${JSON.stringify(raw.authToken)}`);
   }
@@ -277,5 +300,6 @@ export function validateConfig(raw: unknown): Config {
   };
   if (enterpriseCap) out.enterpriseCap = enterpriseCap;
   if (otel) out.otel = otel;
+  if (hookSignals) out.hookSignals = hookSignals;
   return out;
 }

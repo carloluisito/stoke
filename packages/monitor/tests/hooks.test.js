@@ -9,7 +9,10 @@ function runHook(name, input, env = {}) {
   const r = spawnSync("node", [path.join("plugin", "hooks", name)], {
     input: JSON.stringify(input),
     encoding: "utf8",
-    env: { ...process.env, ...env },
+    // Default the session-state dir to a throwaway so NO test can write a
+    // sidecar into the developer's real ~/.stoke. Callers that assert on the
+    // files pass their own dir and override this.
+    env: { ...process.env, STOKE_SESSION_STATE_DIR: tmpStateDir(), ...env },
     timeout: 15000,
   });
   return { code: r.status, out: r.stdout, err: r.stderr };
@@ -23,6 +26,16 @@ function tmpDb(seedTurns = []) {
   seedTurns.forEach(r => ins.run(...r));
   db.close();
   return dbPath;
+}
+
+// Session-state sidecars normally land in ~/.stoke/session-state; redirect them
+// so tests never touch the real home directory.
+function tmpStateDir() {
+  return fs.mkdtempSync(path.join(os.tmpdir(), "tokeff-state-"));
+}
+
+function readState(stateDir, sessionId) {
+  return JSON.parse(fs.readFileSync(path.join(stateDir, `${sessionId}.json`), "utf8"));
 }
 
 describe("hooks", () => {
@@ -70,12 +83,17 @@ describe("hooks", () => {
     expect(ctx).toMatch(/recommend \/compact/);
   });
 
-  it("user-prompt-submit stays silent on a warm small session", () => {
+  it("user-prompt-submit raises no optimizer noise on a warm small session", () => {
     const recent = new Date(Date.now() - 30 * 1000).toISOString();
     const dbPath = tmpDb([["m1","s1","p",recent,"claude-opus-4-8",100,100,0,0,5000,0.01]]);
-    const { code, out } = runHook("user-prompt-submit.mjs", { session_id: "s1" }, { TOKEFF_DB: dbPath });
+    const { code, out } = runHook("user-prompt-submit.mjs", { session_id: "s1" },
+      { TOKEFF_DB: dbPath, STOKE_SESSION_STATE_DIR: tmpStateDir() });
     expect(code).toBe(0);
-    expect(out.trim()).toBe("");
+    // The session-binding marker is always emitted; what must stay absent is
+    // any user-facing note or optimizer directive.
+    const parsed = JSON.parse(out);
+    expect(parsed.systemMessage).toBeUndefined();
+    expect(parsed.hookSpecificOutput.additionalContext).toBe("<stoke-session>s1</stoke-session>");
   });
 
   function suggestConfig() {
@@ -135,5 +153,90 @@ describe("hooks", () => {
   it("fails open: bad DB path still exits 0 with no crash output", () => {
     const { code } = runHook("user-prompt-submit.mjs", { session_id: "s1" }, { TOKEFF_DB: "Z:/does/not/exist/x.db" });
     expect(code).toBe(0);
+  });
+
+  describe("session lifecycle sidecar", () => {
+    it("session-end writes an 'ended' state the proxy can brake on", () => {
+      const stateDir = tmpStateDir();
+      const { code } = runHook("session-end.mjs",
+        { session_id: "sEnd", cwd: "C:/tmp/p" },
+        { STOKE_SESSION_STATE_DIR: stateDir });
+      expect(code).toBe(0);
+      const state = readState(stateDir, "sEnd");
+      expect(state.state).toBe("ended");
+      expect(state.cwd).toBe("C:/tmp/p");
+      expect(typeof state.ts).toBe("number");
+    });
+
+    it("session-end fails open when session_id is missing", () => {
+      const stateDir = tmpStateDir();
+      const { code } = runHook("session-end.mjs", {}, { STOKE_SESSION_STATE_DIR: stateDir });
+      expect(code).toBe(0);
+      expect(fs.readdirSync(stateDir)).toEqual([]);
+    });
+
+    it("stop marks the session idle at the prompt", () => {
+      const stateDir = tmpStateDir();
+      const dbPath = tmpDb([["m1","sIdle","p","2026-07-11T10:00:00Z","claude-opus-4-8",100,100,0,0,0,0.1]]);
+      const { code } = runHook("stop.mjs",
+        { session_id: "sIdle", cwd: "C:/tmp/p" },
+        { TOKEFF_DB: dbPath, STOKE_SESSION_STATE_DIR: stateDir });
+      expect(code).toBe(0);
+      expect(readState(stateDir, "sIdle").state).toBe("idle");
+    });
+
+    it("user-prompt-submit marks the turn active and emits the binding marker", () => {
+      const stateDir = tmpStateDir();
+      const recent = new Date(Date.now() - 30 * 1000).toISOString();
+      const dbPath = tmpDb([["m1","sTurn","p",recent,"claude-opus-4-8",100,100,0,0,5000,0.01]]);
+      const { code, out } = runHook("user-prompt-submit.mjs",
+        { session_id: "sTurn", cwd: "C:/tmp/p" },
+        { TOKEFF_DB: dbPath, STOKE_SESSION_STATE_DIR: stateDir });
+      expect(code).toBe(0);
+      expect(readState(stateDir, "sTurn").state).toBe("turn_active");
+      expect(JSON.parse(out).hookSpecificOutput.additionalContext)
+        .toContain("<stoke-session>sTurn</stoke-session>");
+    });
+
+    it("user-prompt-submit keeps optimizer directives alongside the marker", () => {
+      const stateDir = tmpStateDir();
+      const now = Date.now();
+      const dbPath = tmpDb([0, 1, 2].map(i =>
+        [`b${i}`,"sBoth","p",new Date(now - (3 - i) * 30_000).toISOString(),"claude-opus-4-8",1000,100,0,0,150000,0.1]));
+      const { out } = runHook("user-prompt-submit.mjs",
+        { session_id: "sBoth" },
+        { TOKEFF_DB: dbPath, STOKE_SESSION_STATE_DIR: stateDir });
+      const ctx = JSON.parse(out).hookSpecificOutput.additionalContext;
+      expect(ctx).toContain("<stoke-session>sBoth</stoke-session>");
+      expect(ctx).toMatch(/tokeff-directives/);
+      expect(ctx).toMatch(/cheap-explore/);
+    });
+
+    it("emits a marker the proxy's extractClaudeSessionId can parse", () => {
+      // Pins the cross-package contract. The proxy matches
+      // /<stoke-session>([A-Za-z0-9._-]{4,128})<\/stoke-session>/ in
+      // packages/proxy/src/registry.ts; if this shape drifts, the SessionEnd
+      // brake silently stops working instead of failing loudly.
+      const PROXY_RE = /<stoke-session>([A-Za-z0-9._-]{4,128})<\/stoke-session>/;
+      const uuid = "0199f3c4-9999-4aaa-8bbb-0123456789ab";
+      const recent = new Date(Date.now() - 30 * 1000).toISOString();
+      const dbPath = tmpDb([["m1",uuid,"p",recent,"claude-opus-4-8",100,100,0,0,5000,0.01]]);
+      const { out } = runHook("user-prompt-submit.mjs",
+        { session_id: uuid },
+        { TOKEFF_DB: dbPath, STOKE_SESSION_STATE_DIR: tmpStateDir() });
+      const ctx = JSON.parse(out).hookSpecificOutput.additionalContext;
+      expect(PROXY_RE.exec(ctx)?.[1]).toBe(uuid);
+    });
+
+    it("a blocked prompt starts no turn, so the previous idle state stands", () => {
+      const stateDir = tmpStateDir();
+      const past = new Date(Date.now() - 60_000).toISOString();
+      const dbPath = tmpDb([["g1","sBlock","p",past,"claude-opus-4-8",1000,100,0,0,400000,0.3]]);
+      const { out } = runHook("user-prompt-submit.mjs",
+        { session_id: "sBlock" },
+        { TOKEFF_DB: dbPath, STOKE_SESSION_STATE_DIR: stateDir });
+      expect(JSON.parse(out).decision).toBe("block");
+      expect(fs.existsSync(path.join(stateDir, "sBlock.json"))).toBe(false);
+    });
   });
 });

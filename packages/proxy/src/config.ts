@@ -50,6 +50,11 @@ export function defaultConfig(): Config {
       maxFiles: 5,
     },
     otel: { enabled: false },
+    hookSignals: {
+      enabled: true,
+      stateDir: join(homedir(), ".stoke", "session-state"),
+      staleAfterSeconds: 900,
+    },
     authToken: "",
   };
 }
