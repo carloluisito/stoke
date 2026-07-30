@@ -267,3 +267,24 @@ test("/v1/messages and unknown routes are not handled (fall through to forwarder
   }
   rmSync(deps.path, { force: true });
 });
+
+test("deriveCacheStatus distinguishes a deliberate close from a timeout", () => {
+  const closed = { state: "abandoned" as const, lastSeenAt: 0, pauseReason: "claude_session_ended" };
+  const timedOut = { state: "abandoned" as const, lastSeenAt: 0, pauseReason: undefined };
+  const cappedOut = { state: "abandoned" as const, lastSeenAt: 0, pauseReason: "pings_without_progress" };
+
+  assert.equal(deriveCacheStatus(closed, 10_000, 3600), "closed");
+  assert.equal(deriveCacheStatus(timedOut, 10_000, 3600), "abandoned");
+  assert.equal(deriveCacheStatus(cappedOut, 10_000, 3600), "abandoned");
+});
+
+test("deriveCacheStatus still reports paused ahead of any abandon reason", () => {
+  assert.equal(
+    deriveCacheStatus(
+      { state: "paused", lastSeenAt: 0, pauseReason: "claude_session_ended" },
+      10_000,
+      3600,
+    ),
+    "paused",
+  );
+});

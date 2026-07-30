@@ -127,6 +127,9 @@ main{flex:1;max-width:1180px;width:100%;margin:0 auto;padding:26px 26px 80px}
 .livecard.cold{border-left:3px solid var(--dim)}
 .livecard.paused{border-left:3px solid var(--warn)}
 .livecard.abandoned{border-left:3px solid var(--faint);opacity:.62}
+/* Deliberately closed by the user, not merely given up on — dimmed like
+   abandoned but kept legible, since it represents a clean stop, not a loss. */
+.livecard.closed{border-left:3px solid var(--dim);opacity:.72}
 .ticker{max-height:340px;overflow:auto;display:flex;flex-direction:column}
 .ev{display:flex;align-items:center;gap:11px;padding:11px 6px;border-bottom:1px solid var(--border);font-size:13px;animation:evin .4s ease}
 @keyframes evin{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}

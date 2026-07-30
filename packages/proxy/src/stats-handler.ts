@@ -45,15 +45,25 @@ const PINGS_PER_REWRITE = 7;
  * the bug report from 2026-05-22 where a daily_spend_cap-blocked session sat
  * at "active · 16m idle · 0 pings" while its cache was long gone.
  */
-export type CacheStatus = "warm" | "cold" | "paused" | "abandoned";
+export type CacheStatus = "warm" | "cold" | "paused" | "abandoned" | "closed";
 
 export function deriveCacheStatus(
-  session: { state: "active" | "paused" | "abandoned"; lastSeenAt: number },
+  session: {
+    state: "active" | "paused" | "abandoned";
+    lastSeenAt: number;
+    pauseReason?: string;
+  },
   nowMs: number,
   ttlSec: number = CACHE_TTL_SECONDS,
 ): CacheStatus {
   if (session.state === "paused") return "paused";
-  if (session.state === "abandoned") return "abandoned";
+  // "closed" is distinct from "abandoned" on purpose: the former means Claude
+  // Code told us the session ended (deliberate, zero further pings), the latter
+  // means it simply went quiet long enough to give up on. Same end state, very
+  // different story for anyone reading the dashboard.
+  if (session.state === "abandoned") {
+    return session.pauseReason === "claude_session_ended" ? "closed" : "abandoned";
+  }
   const idleSec = Math.max(0, (nowMs - session.lastSeenAt) / 1000);
   return idleSec < ttlSec ? "warm" : "cold";
 }
@@ -376,6 +386,13 @@ export function serializeSession(
     key: s.key,
     projectPath: extractProjectPath(s.lastPayload) ?? "unknown",
     model: s.model,
+    // Whether we could attribute this session to a live Claude Code session.
+    // Null means either no hooks installed, or this is not a main session at all
+    // (a subagent or auxiliary call — those never submit a user prompt, so no
+    // marker is ever injected into their payload). Surfaced because "is it
+    // bound" is the difference between a session the SessionEnd brake can stop
+    // and one it cannot.
+    claudeSessionId: s.claudeSessionId ?? null,
     prefixTokensEstimate: s.prefixTokensEstimate,
     lastRealRequestAt: new Date(s.lastRealRequestAt).toISOString(),
     lastSeenAt: new Date(s.lastSeenAt).toISOString(),

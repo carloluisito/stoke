@@ -78,8 +78,12 @@ export function useLiveness(proxy) {
 // Countdown to the next cache ping for one live session, given the current clock
 // and when the proxy was last polled. Returns seconds left, progress fraction and
 // whether it just crossed zero (a ping should have fired).
+// Statuses for which no further ping will ever fire, so no countdown should run.
+// "closed" belongs here: Claude Code reported the session ended.
+const NO_MORE_PINGS = new Set(["abandoned", "paused", "closed"]);
+
 export function sessionCountdown(session, now, lastPollAt) {
-  const active = session.cacheStatus !== "abandoned" && session.cacheStatus !== "paused";
+  const active = !NO_MORE_PINGS.has(session.cacheStatus);
   const window = (session.detectedTtlSeconds || 0) - 30;
   const elapsed = Math.max(0, (now - lastPollAt) / 1000);
   const idle = (session.idleSec || 0) + elapsed;

@@ -241,8 +241,24 @@ test("validateConfig still accepts a config with no hookSignals block", () => {
   assert.equal(validateConfig(raw).hookSignals, undefined);
 });
 
-test("defaultConfig ships hookSignals enabled with a session-state dir", () => {
+test("defaultConfig ships hookSignals enabled, requiring a bound session", () => {
   const cfg = defaultConfig();
   assert.equal(cfg.hookSignals?.enabled, true);
-  assert.match(cfg.hookSignals?.stateDir ?? "", /session-state$/);
+  assert.equal(cfg.hookSignals?.requireBoundSession, true);
+  assert.equal(cfg.hookSignals?.staleAfterSeconds, 900);
+});
+
+test("defaultConfig stateDir falls back to ~/.stoke/session-state, and honors the override", () => {
+  // The test runner sets STOKE_SESSION_STATE_DIR to keep the suite hermetic
+  // (the scheduler PRUNES this directory), so check both branches explicitly.
+  const override = process.env.STOKE_SESSION_STATE_DIR;
+  try {
+    delete process.env.STOKE_SESSION_STATE_DIR;
+    assert.match(defaultConfig().hookSignals?.stateDir ?? "", /session-state$/);
+    process.env.STOKE_SESSION_STATE_DIR = "Z:/elsewhere";
+    assert.equal(defaultConfig().hookSignals?.stateDir, "Z:/elsewhere");
+  } finally {
+    if (override === undefined) delete process.env.STOKE_SESSION_STATE_DIR;
+    else process.env.STOKE_SESSION_STATE_DIR = override;
+  }
 });

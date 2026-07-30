@@ -673,3 +673,12 @@ test("abandonNow on an unknown key is a no-op", () => {
   registry.abandonNow("nope", 1000);
   assert.equal(registry.pauseOutcomeCount(50), 0);
 });
+
+test("abandonNow records the reason on the session so the dashboard can show it", () => {
+  const registry = new Registry();
+  const payload = { model: "claude-opus-4-7", tools: [], system: "s", messages: [{ role: "user", content: "hi" }] };
+  const { key } = registry.upsert(payload, "Bearer x", 0);
+  registry.abandonNow(key, 1000);
+  assert.equal(registry.get(key)?.state, "abandoned");
+  assert.equal(registry.get(key)?.pauseReason, "claude_session_ended");
+});

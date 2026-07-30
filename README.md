@@ -135,6 +135,7 @@ config fields:
 | `hookSignals.enabled` | `true` | Honor Claude Code session lifecycle signals from the plugin hooks. |
 | `hookSignals.stateDir` | `~/.stoke/session-state` | Per-session sidecar files written by the hooks. |
 | `hookSignals.staleAfterSeconds` | `900` | Ignore lifecycle signals older than this. |
+| `hookSignals.requireBoundSession` | `true` | Once hooks are proven live, only ping sessions attributable to a Claude Code session — excludes subagents and auxiliary calls. Set `false` if you drive the proxy from a non-Claude-Code client. |
 
 Full schema: `packages/proxy/src/types.ts` + `config-schema.ts`.
 OpenTelemetry export stays available and opt-in (see `otel` config section).

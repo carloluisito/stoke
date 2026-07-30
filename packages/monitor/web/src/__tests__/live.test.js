@@ -48,5 +48,7 @@ describe("sessionCountdown", () => {
   });
   it("is inactive for abandoned/paused sessions", () => {
     expect(sessionCountdown({ cacheStatus: "abandoned", detectedTtlSeconds: 3600, idleSec: 10 }, now, now).active).toBe(false);
+    // A closed session will never be pinged again, so no countdown may run.
+    expect(sessionCountdown({ cacheStatus: "closed", detectedTtlSeconds: 3600, idleSec: 10 }, now, now).active).toBe(false);
   });
 });
