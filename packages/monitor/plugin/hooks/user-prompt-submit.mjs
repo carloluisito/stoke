@@ -1,4 +1,4 @@
-import { readStdin, loadOptimizerConfig, openDbSafe, logIntervention, sessionTurns, sessionTtlMs, loadContext, emit } from "./lib.mjs";
+import { readStdin, loadOptimizerConfig, openDbSafe, logIntervention, sessionTurns, sessionTtlMs, loadContext, emit, saveSessionState } from "./lib.mjs";
 import { effectiveContextTokens } from "../../src/context-sidecar.js";
 
 // Agentic optimizer: in enforce mode each detection becomes a DIRECTIVE injected
@@ -41,6 +41,11 @@ try {
     }
   }
 
+  // A turn is now in flight, so a real request is near-certain to follow. Written
+  // AFTER the hard gate above: a blocked prompt starts no turn, so the previous
+  // `idle` state must stand.
+  saveSessionState(input.session_id, "turn_active", input.cwd);
+
   if (last) {
     const ttlMs = sessionTtlMs(turns);
     const gapMs = Date.now() - new Date(last.ts).getTime();
@@ -79,12 +84,23 @@ try {
 
   const out = {};
   if (notes.length) out.systemMessage = notes.join("\n");
-  if (directives.length) {
+
+  // The marker binds Claude Code's session_id to the proxy's prefix-hash session
+  // key, which is the only way the proxy can tell WHICH registry entry a
+  // SessionEnd refers to when several sessions run at once. It lives in
+  // `messages`, which the proxy's cacheablePrefix excludes, so it cannot
+  // fragment the key. Re-emitted every turn (~20 tokens) so the binding survives
+  // a proxy restart and does not depend on Claude Code persisting an injected
+  // reminder into later requests.
+  const contextParts = [];
+  if (input.session_id) contextParts.push(`<stoke-session>${input.session_id}</stoke-session>`);
+  if (directives.length) contextParts.push(`<tokeff-directives>\n${directives.join("\n\n")}\n</tokeff-directives>`);
+  if (contextParts.length) {
     out.hookSpecificOutput = {
       hookEventName: "UserPromptSubmit",
-      additionalContext: `<tokeff-directives>\n${directives.join("\n\n")}\n</tokeff-directives>`,
+      additionalContext: contextParts.join("\n"),
     };
   }
-  if (notes.length || directives.length) emit(out);
+  if (Object.keys(out).length) emit(out);
 } catch { /* fail open */ }
 process.exit(0);

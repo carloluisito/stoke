@@ -8,6 +8,7 @@ const HOOK_EVENTS = {
   UserPromptSubmit: "user-prompt-submit.mjs",
   PreToolUse: "pre-tool-use.mjs",
   Stop: "stop.mjs",
+  SessionEnd: "session-end.mjs",
 };
 
 export function install({ configDir, projectRoot, dryRun = false }) {

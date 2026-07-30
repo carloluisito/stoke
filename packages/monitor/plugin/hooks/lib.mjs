@@ -87,6 +87,27 @@ export function loadContext(sessionId) {
   try { return JSON.parse(fs.readFileSync(contextSidecarPath(sessionId, stokeDir), "utf8")); } catch { return null; }
 }
 
+// Session lifecycle sidecar: written by the hooks, read by the proxy's scheduler
+// on each tick. Files rather than an HTTP call to the proxy so the signal needs
+// no auth surface, and so a missing directory simply means "no signal" — which
+// the scheduler treats as the pre-hook behavior.
+//
+// STOKE_SESSION_STATE_DIR exists for tests, mirroring TOKEFF_DB; the proxy reads
+// the path from its own `hookSignals.stateDir` config.
+export function sessionStatePath(sessionId) {
+  const dir = process.env.STOKE_SESSION_STATE_DIR || path.join(stokeDir, "session-state");
+  return path.join(dir, `${sessionId}.json`);
+}
+
+export function saveSessionState(sessionId, state, cwd) {
+  if (!sessionId) return;
+  try {
+    const p = sessionStatePath(sessionId);
+    fs.mkdirSync(path.dirname(p), { recursive: true });
+    fs.writeFileSync(p, JSON.stringify({ state, ts: Date.now(), cwd: cwd || "" }));
+  } catch { /* fail open */ }
+}
+
 export function emit(obj) {
   if (obj) process.stdout.write(JSON.stringify(obj));
 }

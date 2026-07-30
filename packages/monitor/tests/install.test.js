@@ -41,6 +41,9 @@ describe("install", () => {
     expect(s.hooks.UserPromptSubmit).toBeTruthy();
     expect(s.hooks.PreToolUse).toBeTruthy();
     expect(s.hooks.Stop).toBeTruthy();
+    // SessionEnd is what lets the proxy stop pinging a closed session.
+    expect(s.hooks.SessionEnd).toBeTruthy();
+    expect(JSON.stringify(s.hooks.SessionEnd)).toContain("session-end.mjs");
   });
   it("sets statusLine when none exists", () => {
     fs.writeFileSync(path.join(configDir, "settings.json"), "{}");
