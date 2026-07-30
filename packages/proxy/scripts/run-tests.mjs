@@ -11,7 +11,8 @@
 //     `*` and only matches one directory level — silently skipping most tests.
 // Enumerating files in Node and passing explicit paths sidesteps all three.
 
-import { readdirSync } from "node:fs";
+import { readdirSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 import process from "node:process";
@@ -28,10 +29,18 @@ if (files.length === 0) {
   process.exit(1);
 }
 
+// Point session-state at a throwaway directory for the whole suite. The
+// scheduler both READS and PRUNES (deletes from) config.hookSignals.stateDir,
+// which defaults to ~/.stoke/session-state — so without this, tests would see
+// the developer's live sessions and could delete their sidecars.
+const stateDir = mkdtempSync(path.join(tmpdir(), "stoke-test-state-"));
+
 const result = spawnSync(
   process.execPath,
   ["--import", "tsx", "--test", ...files],
-  { stdio: "inherit" },
+  { stdio: "inherit", env: { ...process.env, STOKE_SESSION_STATE_DIR: stateDir } },
 );
+
+rmSync(stateDir, { recursive: true, force: true });
 
 process.exit(result.status ?? 1);

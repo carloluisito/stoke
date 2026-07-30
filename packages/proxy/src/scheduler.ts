@@ -79,7 +79,7 @@ export function effectiveConsecutivePingCap(
   return Math.max(minConsecutivePings, Math.min(maxConsecutivePings, derived));
 }
 
-export type PingGate = "proceed" | "abandon";
+export type PingGate = "proceed" | "abandon" | "skip";
 
 /**
  * Brake decision for one session, given what Claude Code reports about its owner.
@@ -99,9 +99,21 @@ export type PingGate = "proceed" | "abandon";
 export function decidePingGate(
   session: Session,
   hookStates: Map<string, HookStateRecord>,
+  requireBound = false,
 ): PingGate {
   const id = session.claudeSessionId;
-  if (!id) return "proceed";
+  if (!id) {
+    // No marker ever reached us for this session. A main session binds on its
+    // FIRST turn (UserPromptSubmit injects the marker before the request goes
+    // out), so once hooks are demonstrably live an unbound session is a subagent
+    // or an auxiliary call — work that has already finished and will never send
+    // another request. Pinging it warms a cache nobody will read.
+    //
+    // "skip" rather than "abandon" on purpose: this is an inference, not a fact
+    // like SessionEnd. Skipping only forgoes savings; abandoning would destroy
+    // state, and a hook outage must never do that.
+    return requireBound ? "skip" : "proceed";
+  }
   const record = hookStates.get(id);
   if (!record || record.state !== "ended") return "proceed";
   if (session.lastRealRequestAt > record.ts) return "proceed";
@@ -170,6 +182,13 @@ export async function runSchedulerTick(inputs: TickInputs): Promise<void> {
       )
     : new Map<string, HookStateRecord>();
 
+  // Only demand a binding once we have PROOF the hooks are running. With no
+  // sidecars at all we cannot distinguish "no hooks installed" from "every
+  // session is a worker", so we must assume the former and behave as before.
+  const requireBound = Boolean(
+    hookSignals?.enabled && hookSignals.requireBoundSession && hookStates.size > 0,
+  );
+
   if (hookSignals?.enabled) {
     // Disk hygiene only — the staleness window already makes old files inert.
     // Reuses the session eviction horizon so a sidecar outlives the session it
@@ -182,7 +201,7 @@ export async function runSchedulerTick(inputs: TickInputs): Promise<void> {
 
     for (const session of inputs.registry.all()) {
       if (session.state === "abandoned") continue;
-      if (decidePingGate(session, hookStates) !== "abandon") continue;
+      if (decidePingGate(session, hookStates, requireBound) !== "abandon") continue;
       inputs.registry.abandonNow(session.key, inputs.nowMs);
       inputs.logger.write({
         ts: new Date(inputs.nowMs).toISOString(),
@@ -199,9 +218,15 @@ export async function runSchedulerTick(inputs: TickInputs): Promise<void> {
   // Per-session cadence: only sessions idle longer than their effective cadence
   // are eligible to ping. detectedTtlSeconds drives this; the config knob
   // pingCadenceMarginSeconds is the safety margin before TTL expiry.
-  const active = inputs.registry.activeSessionsBy(
+  const idle = inputs.registry.activeSessionsBy(
     inputs.nowMs,
     (s) => effectiveCadenceMs(s, inputs.config),
+  );
+  // Filter BEFORE picking a target. Selecting first and gating after would let a
+  // skipped worker session win the "longest-lived" contest every tick and starve
+  // the real session sitting behind it.
+  const active = idle.filter(
+    (s) => decidePingGate(s, hookStates, requireBound) === "proceed",
   );
   if (active.length === 0) return;
 

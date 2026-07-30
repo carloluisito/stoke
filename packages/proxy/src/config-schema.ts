@@ -244,7 +244,12 @@ export function validateConfig(raw: unknown): Config {
   let hookSignals: Config["hookSignals"];
   if (raw.hookSignals !== undefined) {
     if (!isObject(raw.hookSignals)) throw new ConfigError("hookSignals must be an object");
-    const allowed = new Set(["enabled", "stateDir", "staleAfterSeconds"]);
+    const allowed = new Set([
+      "enabled",
+      "stateDir",
+      "staleAfterSeconds",
+      "requireBoundSession",
+    ]);
     for (const k of Object.keys(raw.hookSignals)) {
       if (!allowed.has(k)) throw new ConfigError(`hookSignals: unknown field ${k}`);
     }
@@ -261,7 +266,13 @@ export function validateConfig(raw: unknown): Config {
         `hookSignals.staleAfterSeconds must be >= 60, got ${staleAfterSeconds}`,
       );
     }
-    hookSignals = { enabled, stateDir, staleAfterSeconds };
+    // Optional with a safe default: an existing config written before this
+    // setting existed must keep validating rather than hard-fail on startup.
+    const requireBoundSession =
+      raw.hookSignals.requireBoundSession === undefined
+        ? true
+        : requireBoolean(raw.hookSignals.requireBoundSession, "hookSignals.requireBoundSession");
+    hookSignals = { enabled, stateDir, staleAfterSeconds, requireBoundSession };
   }
 
   if (typeof raw.authToken !== "string") {

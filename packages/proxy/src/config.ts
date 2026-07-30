@@ -52,8 +52,14 @@ export function defaultConfig(): Config {
     otel: { enabled: false },
     hookSignals: {
       enabled: true,
-      stateDir: join(homedir(), ".stoke", "session-state"),
+      // STOKE_SESSION_STATE_DIR mirrors the hook side (see plugin/hooks/lib.mjs)
+      // and is what keeps the test suite hermetic. Without it every test using
+      // defaultConfig() reads — and pruneHookStates DELETES from — the user's
+      // real session-state directory.
+      stateDir:
+        process.env.STOKE_SESSION_STATE_DIR || join(homedir(), ".stoke", "session-state"),
       staleAfterSeconds: 900,
+      requireBoundSession: true,
     },
     authToken: "",
   };

@@ -131,6 +131,16 @@ export interface HookSignalsConfig {
   stateDir: string;
   /** Ignore any state file older than this — a stale signal must never win. */
   staleAfterSeconds: number;
+  /**
+   * Once hooks are demonstrably live (at least one state file present), only ping
+   * sessions we could attribute to a Claude Code session. Main sessions bind on
+   * their first turn, so this excludes subagents and auxiliary calls — finished
+   * work that will never send another request.
+   *
+   * Set false if you drive this proxy from something other than Claude Code,
+   * where no marker will ever be injected and nothing would be pinged.
+   */
+  requireBoundSession: boolean;
 }
 
 export interface BudgetCapConfig {

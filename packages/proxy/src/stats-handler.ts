@@ -386,6 +386,13 @@ export function serializeSession(
     key: s.key,
     projectPath: extractProjectPath(s.lastPayload) ?? "unknown",
     model: s.model,
+    // Whether we could attribute this session to a live Claude Code session.
+    // Null means either no hooks installed, or this is not a main session at all
+    // (a subagent or auxiliary call — those never submit a user prompt, so no
+    // marker is ever injected into their payload). Surfaced because "is it
+    // bound" is the difference between a session the SessionEnd brake can stop
+    // and one it cannot.
+    claudeSessionId: s.claudeSessionId ?? null,
     prefixTokensEstimate: s.prefixTokensEstimate,
     lastRealRequestAt: new Date(s.lastRealRequestAt).toISOString(),
     lastSeenAt: new Date(s.lastSeenAt).toISOString(),

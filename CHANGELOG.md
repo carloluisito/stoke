@@ -18,8 +18,28 @@ All notable changes to stoke are documented here. Format based on
   is ignored whenever a real request postdates it, so a stale sidecar left by a
   stopped hook can never brake a live session.
 
+- **Subagents and auxiliary calls are no longer kept warm.** Every request through
+  the proxy registers a session, including subagent and one-shot internal calls —
+  work that finishes and never sends another request. Measured on a 51-day log:
+  534 pings / $41.75 spent on sessions whose entire real-request lifespan was
+  under 10 minutes. Those sessions never submit a user prompt, so no
+  `<stoke-session>` marker is injected and they cannot be bound; once hooks are
+  demonstrably live (at least one state file present) an unbound session is
+  skipped. Controlled by `hookSignals.requireBoundSession` (default `true`).
+  Fails open: with zero state files the proxy cannot tell "no hooks installed"
+  from "all workers", so it pings as before. Skipping never abandons — a hook
+  outage costs savings, never session state. A tell for these sessions on the
+  dashboard: they report a 5-minute TTL where main sessions negotiate 1 hour.
+- Sessions in `/_stoke/stats` now expose `claudeSessionId`, so it is visible which
+  sessions the `SessionEnd` brake can actually stop.
+
 ### Fixed
 
+- **Proxy tests no longer read or delete the real `~/.stoke/session-state`.** The
+  scheduler prunes `hookSignals.stateDir`, which defaults to the user's real
+  directory, so any test using `defaultConfig()` could see live sessions — and
+  with a realistic `nowMs` could have deleted their sidecars. The test runner now
+  points `STOKE_SESSION_STATE_DIR` at a throwaway directory.
 - **The adaptive ping cap no longer treats certain returns as speculative ones.**
   A long tool call that tripped `maxConsecutivePings` and then completed was
   recording a `+returned` outcome into `observedReturnRate`, but that return was

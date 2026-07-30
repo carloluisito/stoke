@@ -625,7 +625,7 @@ test("runSchedulerTick fires no ping for a session whose Claude Code session end
   const registry = new Registry();
   const logger = new JsonlLogger(path);
   const config = defaultConfig();
-  config.hookSignals = { enabled: true, stateDir, staleAfterSeconds: 900 };
+  config.hookSignals = { enabled: true, stateDir, staleAfterSeconds: 900, requireBoundSession: false };
   const guard = new BudgetGuard(config);
 
   const uuid = "0199f3c4-3333-4aaa-8bbb-0123456789ab";
@@ -670,7 +670,7 @@ test("runSchedulerTick still pings an idle bound session (brake-only, not stingi
   const registry = new Registry();
   const logger = new JsonlLogger(path);
   const config = defaultConfig();
-  config.hookSignals = { enabled: true, stateDir, staleAfterSeconds: 900 };
+  config.hookSignals = { enabled: true, stateDir, staleAfterSeconds: 900, requireBoundSession: false };
   const guard = new BudgetGuard(config);
 
   const uuid = "0199f3c4-4444-4aaa-8bbb-0123456789ab";
@@ -723,7 +723,7 @@ test("runSchedulerTick is unaffected when hookSignals is disabled", async () => 
   const registry = new Registry();
   const logger = new JsonlLogger(path);
   const config = defaultConfig();
-  config.hookSignals = { enabled: false, stateDir: "Z:/nope", staleAfterSeconds: 900 };
+  config.hookSignals = { enabled: false, stateDir: "Z:/nope", staleAfterSeconds: 900, requireBoundSession: false };
   const guard = new BudgetGuard(config);
 
   const { key } = registry.upsert(
@@ -759,4 +759,149 @@ test("runSchedulerTick is unaffected when hookSignals is disabled", async () => 
   });
 
   assert.equal(pinged, true);
+});
+
+// ===== worker sessions (subagents / auxiliary calls) =======================
+
+test("decidePingGate skips an unbound session only when a binding is required", () => {
+  const states = new Map<string, HookStateRecord>([["main", { state: "idle", ts: 100 }]]);
+  const worker = boundSession(undefined);
+  // requireBound off (default) -> unchanged, pre-hook behavior.
+  assert.equal(decidePingGate(worker, states), "proceed");
+  assert.equal(decidePingGate(worker, states, false), "proceed");
+  // requireBound on -> skip, never abandon: this is an inference, not a fact.
+  assert.equal(decidePingGate(worker, states, true), "skip");
+});
+
+test("decidePingGate still proceeds for a BOUND session when a binding is required", () => {
+  const states = new Map<string, HookStateRecord>([["main", { state: "idle", ts: 100 }]]);
+  assert.equal(decidePingGate(boundSession("main"), states, true), "proceed");
+  // Bound but with no signal of its own (e.g. its file aged out) still proceeds.
+  assert.equal(decidePingGate(boundSession("other"), states, true), "proceed");
+});
+
+test("decidePingGate still abandons an ended session when a binding is required", () => {
+  const states = new Map<string, HookStateRecord>([["dead", { state: "ended", ts: 100 }]]);
+  assert.equal(decidePingGate(boundSession("dead"), states, true), "abandon");
+});
+
+test("runSchedulerTick does not ping a worker session once hooks are proven live", async () => {
+  const stateDir = mkdtempSync(join(tmpdir(), "csch-worker-"));
+  const path = join(mkdtempSync(join(tmpdir(), "csch-")), "events.jsonl");
+  const registry = new Registry();
+  const logger = new JsonlLogger(path);
+  const config = defaultConfig();
+  config.hookSignals = { enabled: true, stateDir, staleAfterSeconds: 900, requireBoundSession: true };
+  const guard = new BudgetGuard(config);
+
+  // A worker session: no marker in its payload, exactly like a subagent.
+  const { key } = registry.upsert(
+    { model: "claude-sonnet-5", tools: [], system: "worker", messages: [{ role: "user", content: "do a thing" }] },
+    "Bearer abc",
+    0,
+  );
+  registry.recordRealUsage(key, {
+    input_tokens: 1, output_tokens: 0,
+    cache_creation_input_tokens: 60000, cache_read_input_tokens: 0,
+  }, NO_RL);
+
+  // Proof that hooks are running, from some OTHER session.
+  writeFileSync(join(stateDir, "some-other-session.json"), JSON.stringify({ state: "idle", ts: 200_000 }));
+
+  let pinged = false;
+  await runSchedulerTick({
+    registry, logger, config, guard,
+    fetcher: async () => { pinged = true; return { status: 200, usage: null, ratelimits: NO_RL }; },
+    nowMs: 300_000, spendUsdToday: 0, spendUsdMonth: 0, pingsToday: 0,
+  });
+
+  assert.equal(pinged, false, "a worker session must not be pinged");
+  assert.equal(registry.get(key)?.state, "active", "skipping must NOT destroy session state");
+  rmSync(stateDir, { recursive: true, force: true });
+});
+
+test("runSchedulerTick still pings an unbound session when NO hook signal exists at all", async () => {
+  // Cannot tell "no hooks installed" from "all workers", so it must fail OPEN.
+  const stateDir = mkdtempSync(join(tmpdir(), "csch-nohooks-"));
+  const path = join(mkdtempSync(join(tmpdir(), "csch-")), "events.jsonl");
+  const registry = new Registry();
+  const logger = new JsonlLogger(path);
+  const config = defaultConfig();
+  config.hookSignals = { enabled: true, stateDir, staleAfterSeconds: 900, requireBoundSession: true };
+  const guard = new BudgetGuard(config);
+
+  const { key } = registry.upsert(
+    { model: "claude-opus-4-7", tools: [], system: "s", messages: [{ role: "user", content: "hi" }] },
+    "Bearer abc",
+    0,
+  );
+  registry.recordRealUsage(key, {
+    input_tokens: 1, output_tokens: 0,
+    cache_creation_input_tokens: 60000, cache_read_input_tokens: 0,
+  }, NO_RL);
+
+  let pinged = false;
+  await runSchedulerTick({
+    registry, logger, config, guard,
+    fetcher: async () => {
+      pinged = true;
+      return {
+        status: 200,
+        usage: { input_tokens: 2, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 60000 },
+        ratelimits: NO_RL,
+      };
+    },
+    nowMs: 300_000, spendUsdToday: 0, spendUsdMonth: 0, pingsToday: 0,
+  });
+
+  assert.equal(pinged, true, "with zero sidecars present, behavior must be unchanged");
+  rmSync(stateDir, { recursive: true, force: true });
+});
+
+test("a skipped worker never starves a bound session of its ping", async () => {
+  const stateDir = mkdtempSync(join(tmpdir(), "csch-starve-"));
+  const path = join(mkdtempSync(join(tmpdir(), "csch-")), "events.jsonl");
+  const registry = new Registry();
+  const logger = new JsonlLogger(path);
+  const config = defaultConfig();
+  config.hookSignals = { enabled: true, stateDir, staleAfterSeconds: 900, requireBoundSession: true };
+  const guard = new BudgetGuard(config);
+  const uuid = "0199f3c4-5555-4aaa-8bbb-0123456789ab";
+
+  // The WORKER is older, so it would win "longest-lived" target selection.
+  const worker = registry.upsert(
+    { model: "claude-sonnet-5", tools: [], system: "worker", messages: [{ role: "user", content: "x" }] },
+    "Bearer abc", 0,
+  );
+  const main = registry.upsert(
+    {
+      model: "claude-opus-4-7", tools: [], system: "main",
+      messages: [{ role: "user", content: `<stoke-session>${uuid}</stoke-session>` }],
+    },
+    "Bearer abc", 1000,
+  );
+  for (const k of [worker.key, main.key]) {
+    registry.recordRealUsage(k, {
+      input_tokens: 1, output_tokens: 0,
+      cache_creation_input_tokens: 60000, cache_read_input_tokens: 0,
+    }, NO_RL);
+  }
+  writeFileSync(join(stateDir, `${uuid}.json`), JSON.stringify({ state: "idle", ts: 200_000 }));
+
+  const models: string[] = [];
+  await runSchedulerTick({
+    registry, logger, config, guard,
+    fetcher: async (payload) => {
+      models.push(String(payload.model));
+      return {
+        status: 200,
+        usage: { input_tokens: 2, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 60000 },
+        ratelimits: NO_RL,
+      };
+    },
+    nowMs: 300_000, spendUsdToday: 0, spendUsdMonth: 0, pingsToday: 0,
+  });
+
+  assert.deepEqual(models, ["claude-opus-4-7"], "the bound session must get the ping, not the older worker");
+  rmSync(stateDir, { recursive: true, force: true });
 });
