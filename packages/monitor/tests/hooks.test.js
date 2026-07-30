@@ -9,7 +9,10 @@ function runHook(name, input, env = {}) {
   const r = spawnSync("node", [path.join("plugin", "hooks", name)], {
     input: JSON.stringify(input),
     encoding: "utf8",
-    env: { ...process.env, ...env },
+    // Default the session-state dir to a throwaway so NO test can write a
+    // sidecar into the developer's real ~/.stoke. Callers that assert on the
+    // files pass their own dir and override this.
+    env: { ...process.env, STOKE_SESSION_STATE_DIR: tmpStateDir(), ...env },
     timeout: 15000,
   });
   return { code: r.status, out: r.stdout, err: r.stderr };
