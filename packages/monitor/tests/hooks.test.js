@@ -209,6 +209,22 @@ describe("hooks", () => {
       expect(ctx).toMatch(/cheap-explore/);
     });
 
+    it("emits a marker the proxy's extractClaudeSessionId can parse", () => {
+      // Pins the cross-package contract. The proxy matches
+      // /<stoke-session>([A-Za-z0-9._-]{4,128})<\/stoke-session>/ in
+      // packages/proxy/src/registry.ts; if this shape drifts, the SessionEnd
+      // brake silently stops working instead of failing loudly.
+      const PROXY_RE = /<stoke-session>([A-Za-z0-9._-]{4,128})<\/stoke-session>/;
+      const uuid = "0199f3c4-9999-4aaa-8bbb-0123456789ab";
+      const recent = new Date(Date.now() - 30 * 1000).toISOString();
+      const dbPath = tmpDb([["m1",uuid,"p",recent,"claude-opus-4-8",100,100,0,0,5000,0.01]]);
+      const { out } = runHook("user-prompt-submit.mjs",
+        { session_id: uuid },
+        { TOKEFF_DB: dbPath, STOKE_SESSION_STATE_DIR: tmpStateDir() });
+      const ctx = JSON.parse(out).hookSpecificOutput.additionalContext;
+      expect(PROXY_RE.exec(ctx)?.[1]).toBe(uuid);
+    });
+
     it("a blocked prompt starts no turn, so the previous idle state stands", () => {
       const stateDir = tmpStateDir();
       const past = new Date(Date.now() - 60_000).toISOString();

@@ -537,11 +537,30 @@ test("extractClaudeSessionId returns null when absent or malformed", () => {
   assert.equal(extractClaudeSessionId({ messages: [{ role: "user", content: "hi" }] }), null);
   assert.equal(extractClaudeSessionId({ messages: "not-an-array" }), null);
   assert.equal(extractClaudeSessionId({}), null);
-  assert.equal(
-    extractClaudeSessionId({ messages: [{ role: "user", content: "<stoke-session>nope</stoke-session>" }] }),
-    null,
-  );
   assert.equal(extractClaudeSessionId({ messages: [null, 42, { content: null }] }), null);
+  // Empty, too short, or containing characters no session_id uses.
+  for (const bad of ["", "ab", "has space", "semi;colon", "<nested>"]) {
+    assert.equal(
+      extractClaudeSessionId({
+        messages: [{ role: "user", content: `<stoke-session>${bad}</stoke-session>` }],
+      }),
+      null,
+      `"${bad}" must not be accepted as a session id`,
+    );
+  }
+});
+
+test("extractClaudeSessionId accepts non-UUID session ids", () => {
+  // Claude Code's documented example session_id is `abc123`. Requiring UUID
+  // syntax would silently disable the binding, and with it the SessionEnd brake.
+  assert.equal(
+    extractClaudeSessionId({ messages: [{ role: "user", content: "<stoke-session>abc123</stoke-session>" }] }),
+    "abc123",
+  );
+  assert.equal(
+    extractClaudeSessionId({ messages: [{ role: "user", content: "<stoke-session>sess_A-1.2</stoke-session>" }] }),
+    "sess_A-1.2",
+  );
 });
 
 test("extractClaudeSessionId ignores a marker outside messages", () => {

@@ -48,8 +48,12 @@ export function computeSessionKey(payload: Hashable): SessionKey {
     .slice(0, 16);
 }
 
-const SESSION_MARKER_RE =
-  /<stoke-session>([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})<\/stoke-session>/g;
+// Deliberately NOT UUID-shaped: Claude Code's documented example session_id is
+// `abc123`, not a UUID, so pinning this to UUID syntax would silently disable the
+// entire binding — and with it the SessionEnd brake — if the id format ever
+// differs. A conservative token charset keeps the tag unambiguous while staying
+// agnostic about what the id looks like.
+const SESSION_MARKER_RE = /<stoke-session>([A-Za-z0-9._-]{4,128})<\/stoke-session>/g;
 
 /**
  * Recover Claude Code's own session_id from the marker its UserPromptSubmit hook
