@@ -4,16 +4,23 @@
   "description": "One tool to minimize Claude Code token cost: cache keep-alive proxy + spend monitor + one dashboard.",
   "type": "module",
   "private": true,
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "license": "MIT",
-  "workspaces": ["packages/*"],
-  "bin": { "stoke": "packages/cli/bin/stoke.mjs" },
+  "workspaces": [
+    "packages/*"
+  ],
+  "bin": {
+    "stoke": "packages/cli/bin/stoke.mjs"
+  },
   "scripts": {
     "setup": "node scripts/setup.mjs",
     "start": "node packages/cli/bin/stoke.mjs start",
     "status": "node packages/cli/bin/stoke.mjs status",
     "test": "npm run test -ws --if-present",
     "test:proxy": "npm run test -w @stoke/proxy",
-    "test:monitor": "npm run test -w @stoke/monitor"
+    "test:monitor": "npm run test -w @stoke/monitor",
+    "verify:keepalive": "node --import tsx scripts/verify-keepalive.mjs"
   }
 }
