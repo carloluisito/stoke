@@ -48,6 +48,54 @@ export function computeSessionKey(payload: Hashable): SessionKey {
     .slice(0, 16);
 }
 
+const SESSION_MARKER_RE =
+  /<stoke-session>([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})<\/stoke-session>/g;
+
+/**
+ * Recover Claude Code's own session_id from the marker its UserPromptSubmit hook
+ * injects. This is the only join between what a hook knows (session_id) and what
+ * the registry knows (a hash of model + tools + system), and without it the proxy
+ * cannot tell WHICH session a SessionEnd refers to when several run at once.
+ *
+ * Scans `messages` ONLY. The marker is deliberately placed where
+ * `cacheablePrefix` excludes it, so it cannot fragment the session key — and
+ * honoring one found in tools/system would defeat that guarantee.
+ *
+ * Returns the LAST match: a resumed or forked conversation carries the old
+ * marker in history plus a fresh one, and the newest is the live session.
+ *
+ * Pure function — no I/O, safe to test exhaustively.
+ */
+export function extractClaudeSessionId(payload: Hashable): string | null {
+  const messages = payload.messages;
+  if (!Array.isArray(messages)) return null;
+  let found: string | null = null;
+  for (const msg of messages) {
+    for (const text of markerTexts(msg)) {
+      for (const m of text.matchAll(SESSION_MARKER_RE)) found = m[1];
+    }
+  }
+  return found;
+}
+
+/** Every plain-text string reachable in a message's content, string or blocks. */
+function markerTexts(msg: unknown): string[] {
+  if (!msg || typeof msg !== "object") return [];
+  const content = (msg as Record<string, unknown>).content;
+  if (typeof content === "string") return [content];
+  if (!Array.isArray(content)) return [];
+  const out: string[] = [];
+  for (const block of content) {
+    if (typeof block === "string") {
+      out.push(block);
+    } else if (block && typeof block === "object") {
+      const t = (block as Record<string, unknown>).text;
+      if (typeof t === "string") out.push(t);
+    }
+  }
+  return out;
+}
+
 function cacheablePrefix(payload: Hashable): unknown {
   // Hash only the structural prefix: tools + system. Messages are
   // deliberately excluded — Claude Code rotates cache_control onto the
@@ -338,6 +386,9 @@ export class Registry {
   ): UpsertResult {
     const key = computeSessionKey(payload as Hashable);
     const ttlSec = detectCacheTtlSeconds(payload as Hashable);
+    // Only ever OVERWRITE on a hit: a markerless request (a subagent, or a turn
+    // where the hook did not run) must not unbind a session we already know.
+    const claudeSessionId = extractClaudeSessionId(payload as Hashable);
     const existing = this.sessions.get(key);
     if (existing) {
       const previousState: SessionStateName = existing.state;
@@ -360,6 +411,7 @@ export class Registry {
       existing.lastRealRequestAt = nowMs;
       existing.detectedTtlSeconds = ttlSec;
       existing.pingsSinceLastReal = 0;
+      if (claudeSessionId) existing.claudeSessionId = claudeSessionId;
       if (existing.state !== "active") {
         existing.state = "active";
         delete existing.pauseReason;
@@ -389,6 +441,7 @@ export class Registry {
       pingHistory5h: [],
       lastRatelimits: null,
       state: "active",
+      ...(claudeSessionId ? { claudeSessionId } : {}),
     };
     this.sessions.set(key, fresh);
     return {
